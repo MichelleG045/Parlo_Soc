@@ -275,18 +275,8 @@ struct FeedCard: View {
                         }
                     }
                     .sheet(isPresented: $showCommentsSheet) {
-                        VStack {
-                            Text("Comments")
-                                .font(.headline)
-                                .padding()
-                            
-                            Text("Comments feature coming soon")
-                                .foregroundStyle(.gray)
-                                .padding()
-                            
-                            Spacer()
-                        }
-                        .presentationDetents([.medium])
+                        CommentsSheet(feedItem: item)
+                            .environmentObject(appData)
                     }
                     
                     Spacer()
@@ -371,6 +361,288 @@ struct AudioPlayerView: View {
             } catch {
                 print("Audio playback failed:", error)
             }
+        }
+    }
+}
+
+// MARK: - Comments Sheet
+struct CommentsSheet: View {
+    @EnvironmentObject var appData: AppData
+    let feedItem: FeedItem
+    
+    @State private var newCommentText = ""
+    @State private var comments: [SocialComment] = []
+    @State private var isSubmitting = false
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .font(.system(size: 16, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.txt)
+                    
+                    Spacer()
+                    
+                    Text("Comments")
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.txt)
+                    
+                    Spacer()
+                    
+                    Text("\(comments.count)")
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.gray)
+                        .frame(width: 60, alignment: .trailing)
+                }
+                .padding()
+                .background(.bgDark)
+                
+                Divider()
+                    .background(.gray.opacity(0.3))
+                
+                // Original post preview
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(.gray)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(feedItem.author.name)
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.txt)
+                            
+                            Text(feedItem.author.socialID)
+                                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                                .foregroundStyle(.gray)
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    Text(feedItem.promptText)
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.txt.opacity(0.8))
+                        .lineLimit(2)
+                }
+                .padding()
+                .background(.bgLight.opacity(0.3))
+                
+                Divider()
+                    .background(.gray.opacity(0.3))
+                
+                // Comments list
+                if comments.isEmpty {
+                    VStack(spacing: 16) {
+                        Spacer()
+                        
+                        Image(systemName: "message")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.gray.opacity(0.5))
+                        
+                        Text("No comments yet")
+                            .font(.system(size: 16, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.gray)
+                        
+                        Text("Be the first to share your thoughts!")
+                            .font(.system(size: 14, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.gray)
+                        
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(comments) { comment in
+                                CommentRow(comment: comment, onLikeChanged: refreshComments)
+                                    .environmentObject(appData)
+                            }
+                        }
+                        .padding()
+                    }
+                }
+                
+                // Comment input
+                VStack(spacing: 0) {
+                    Divider()
+                        .background(.gray.opacity(0.3))
+                    
+                    HStack(spacing: 12) {
+                        // User avatar
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.gray)
+                        
+                        // Text input
+                        TextField("Add a comment...", text: $newCommentText, axis: .vertical)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 14, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.txt)  // Makes typed text white
+                            .lineLimit(1...4)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.bgLight.opacity(0.6))
+                            .cornerRadius(20)
+                        
+                        // Send button
+                        Button {
+                            submitComment()
+                        } label: {
+                            Image(systemName: isSubmitting ? "hourglass" : "paperplane.fill")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(canSubmit ? .txt : .gray)
+                                .rotationEffect(.degrees(isSubmitting ? 180 : 0))
+                                .animation(.easeInOut(duration: 0.3), value: isSubmitting)
+                        }
+                        .disabled(!canSubmit || isSubmitting)
+                    }
+                    .padding()
+                    .background(.bgDark)
+                }
+            }
+            .background(.bgDark)
+        }
+        .onAppear {
+            loadComments()
+        }
+    }
+    
+    private var canSubmit: Bool {
+        !newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
+    private func loadComments() {
+        // Always get fresh comments from repository
+        if let repo = appData.repo,
+           let currentFeedItem = repo.feed.first(where: { $0.id == feedItem.id }) {
+            comments = currentFeedItem.comments.sorted { $0.createdAt < $1.createdAt }
+        }
+    }
+    
+    private func refreshComments() {
+        loadComments() // Refresh when a comment is liked
+    }
+    
+    private func submitComment() {
+        guard canSubmit, !isSubmitting else { return }
+        
+        let trimmedText = newCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return }
+        
+        isSubmitting = true
+        
+        // Create author from current user
+        let author = SocialResponseAuthor(
+            name: appData.name.isEmpty ? "You" : appData.name,
+            uid: appData.userID.isEmpty ? "current-user" : appData.userID,
+            socialID: appData.socialID.isEmpty ? "@you" : appData.socialID
+        )
+        
+        // Update the repository
+        Task {
+            await appData.repo?.addComment(
+                responseId: feedItem.id,
+                author: author,
+                text: trimmedText
+            )
+            
+            DispatchQueue.main.async {
+                self.newCommentText = ""
+                self.isSubmitting = false
+                self.loadComments() // Refresh comments list
+            }
+        }
+    }
+}
+
+struct CommentRow: View {
+    @EnvironmentObject var appData: AppData
+    let comment: SocialComment
+    let onLikeChanged: () -> Void
+    @State private var liked = false
+    @State private var currentLikeCount: Int
+    
+    init(comment: SocialComment, onLikeChanged: @escaping () -> Void) {
+        self.comment = comment
+        self.onLikeChanged = onLikeChanged
+        self._currentLikeCount = State(initialValue: comment.likeCount)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Comment header
+            HStack(spacing: 8) {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.gray)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(comment.author.name)
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.txt)
+                    
+                    Text(comment.author.socialID)
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .foregroundStyle(.gray)
+                }
+                
+                Spacer()
+                
+                Text(comment.createdAt.timeAgoString())
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.gray)
+            }
+            
+            // Comment text
+            Text(comment.text)
+                .font(.system(size: 14, weight: .regular, design: .monospaced))
+                .foregroundStyle(.txt)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            // Comment actions
+            HStack(spacing: 16) {
+                Button {
+                    Task {
+                        await appData.repo?.toggleCommentLike(commentId: comment.id, userId: appData.userID)
+                        
+                        // Update local state based on repository
+                        DispatchQueue.main.async {
+                            self.liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.userID) ?? false
+                            
+                            // Get updated like count from repository
+                            if let repo = appData.repo,
+                               let feedItem = repo.feed.first(where: { $0.comments.contains(where: { $0.id == comment.id }) }),
+                               let updatedComment = feedItem.comments.first(where: { $0.id == comment.id }) {
+                                self.currentLikeCount = updatedComment.likeCount
+                            }
+                            
+                            self.onLikeChanged() // Refresh parent
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: liked ? "heart.fill" : "heart")
+                            .font(.system(size: 12))
+                        Text("\(currentLikeCount)")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(liked ? .red : .gray)
+                }
+                
+                Spacer()
+            }
+        }
+        .padding(.vertical, 8)
+        .onAppear {
+            // Load saved like state and current count
+            liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.userID) ?? false
+            currentLikeCount = comment.likeCount
         }
     }
 }

@@ -6,14 +6,10 @@
 //
 
 import Foundation
-import UIKit  // ADD THIS LINE
-// import FirebaseFirestore
-// import FirebaseStorage
+import UIKit
 
 @MainActor
 final class MainSocialFeedRepository: ObservableObject {
-    // private let db = Firestore.firestore()
-    // private let collection = "social_responses"
     
     /// Backing store for the feed list shown in UI (mock version).
     @Published var feed: [FeedItem] = []
@@ -26,14 +22,8 @@ final class MainSocialFeedRepository: ObservableObject {
         author: SocialResponseAuthor,
         visibility: Visibility
     ) async throws {
-        // 🔹 Firestore write (disabled for now)
-        /*
-        let ref = db.collection(collection).document()
-        let item = FeedItem(...)
-        try ref.setData(from: item)
-        */
         
-        // 🔹 Mock insert into local feed
+        // Mock insert into local feed
         let item = FeedItem(
             id: UUID().uuidString,
             author: author,
@@ -53,15 +43,8 @@ final class MainSocialFeedRepository: ObservableObject {
     
     // MARK: - Load Feed
     func loadFeed(filter: FeedFilter, userID: String, limit: Int = 30) async {
-        // 🔹 Firestore read (disabled for now)
-        /*
-        var query = db.collection(collection)
-            .order(by: "createdAt", descending: true)
-            .limit(to: limit)
-        ...
-        */
         
-        // 🔹 Mock filter
+        // Mock filter
         switch filter {
         case .all:
             break
@@ -74,14 +57,8 @@ final class MainSocialFeedRepository: ObservableObject {
     
     // MARK: - Toggle Like
     func toggleLike(responseId: String, userId: String) async {
-        // 🔹 Firestore like/unlike (disabled for now)
-        /*
-        let responseRef = db.collection(collection).document(responseId)
-        let likeRef = responseRef.collection("likes").document(userId)
-        ...
-        */
         
-        // 🔹 Mock like/unlike
+        // Mock like/unlike
         if let idx = feed.firstIndex(where: { $0.id == responseId }) {
             var item = feed[idx]
             if item.likes.contains(userId) {
@@ -97,17 +74,8 @@ final class MainSocialFeedRepository: ObservableObject {
     
     // MARK: - Add Comment
     func addComment(responseId: String, author: SocialResponseAuthor, text: String) async {
-        // 🔹 Firestore add comment (disabled for now)
-        /*
-        let responseRef = db.collection(collection).document(responseId)
-        let commentsRef = responseRef.collection("comments")
-        let newRef = commentsRef.document()
-        let comment = SocialComment(...)
-        try newRef.setData(from: comment)
-        try await responseRef.updateData(...)
-        */
         
-        // 🔹 Mock add comment
+        // Mock add comment
         if let idx = feed.firstIndex(where: { $0.id == responseId }) {
             var item = feed[idx]
             let comment = SocialComment(
@@ -123,18 +91,41 @@ final class MainSocialFeedRepository: ObservableObject {
         }
     }
     
+    // MARK: - Toggle Comment Like
+    func toggleCommentLike(commentId: String, userId: String) async {
+        for (feedIndex, var feedItem) in feed.enumerated() {
+            if let commentIndex = feedItem.comments.firstIndex(where: { $0.id == commentId }) {
+                var comment = feedItem.comments[commentIndex]
+                
+                // Use UserDefaults to track who liked what (simple mock solution)
+                let likeKey = "comment_like_\(commentId)_\(userId)"
+                let hasLiked = UserDefaults.standard.bool(forKey: likeKey)
+                
+                if hasLiked {
+                    comment.likeCount = max(0, comment.likeCount - 1)
+                    UserDefaults.standard.set(false, forKey: likeKey)
+                } else {
+                    comment.likeCount += 1
+                    UserDefaults.standard.set(true, forKey: likeKey)
+                }
+                
+                feedItem.comments[commentIndex] = comment
+                feed[feedIndex] = feedItem
+                return
+            }
+        }
+    }
+    
+    // MARK: - Check if user liked comment
+    func hasUserLikedComment(commentId: String, userId: String) -> Bool {
+        let likeKey = "comment_like_\(commentId)_\(userId)"
+        return UserDefaults.standard.bool(forKey: likeKey)
+    }
+    
     // MARK: - Fetch Comments
     func fetchComments(responseId: String, completion: @escaping ([SocialComment]) -> Void) {
-        // 🔹 Firestore snapshot listener (disabled for now)
-        /*
-        let commentsRef = db.collection(collection)
-            .document(responseId)
-            .collection("comments")
-            .order(by: "createdAt", descending: false)
-        commentsRef.addSnapshotListener { snapshot, error in ... }
-        */
         
-        // 🔹 Mock return comments from memory
+        // Mock return comments from memory
         if let item = feed.first(where: { $0.id == responseId }) {
             completion(item.comments)
         } else {
@@ -145,15 +136,6 @@ final class MainSocialFeedRepository: ObservableObject {
 
 /// Mocked PFP fetch – Firestore/Storage disabled for now.
 func fetchUserPFP(userID: String) async -> UIImage? {
-    // 🔹 Firestore/Storage profile fetch (disabled for now)
-    /*
-    let snapshot = try await Firestore.firestore()
-        .collection("users")
-        .document(userID)
-        .getDocument()
-    ...
-    */
-    
-    // 🔹 Mock: always return nil for now
+    // Mock: always return nil for now
     return nil
 }
