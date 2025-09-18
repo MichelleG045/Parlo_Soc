@@ -72,8 +72,10 @@ struct ShareConfigs: View {
                         }
                     }
                     
-                    // Mark prompt as completed so user can see other responses
-                    appData.completedPrompts.append("today-prompt")
+                    // Only mark as completed if this is their first response (for unlock mechanism)
+                    if !appData.completedPrompts.contains("today-prompt") {
+                        appData.completedPrompts.append("today-prompt")
+                    }
                     
                     step = .record
                 } label: {

@@ -34,7 +34,7 @@ struct MainSocialFeed: View {
                     todayPromptCard
                         .padding(.bottom)
                     
-                    // Feed display - now enabled
+                    // Feed display - enabled
                     LazyVStack(spacing: 16) {
                         ForEach(repo.feed) { item in
                             FeedCard(
@@ -116,32 +116,19 @@ struct MainSocialFeed: View {
                 .foregroundStyle(.txt)
                 .multilineTextAlignment(.leading)
             
-            if hasAnswered {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Answered")
-                        Image(systemName: "checkmark.circle.fill")
-                    }
-                    Text("Your answer is saved.")
-                }
-                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.txt.opacity(0.75))
+            // Always show the Share Response button
+            Button {
+                print("Share Response button tapped")
+                showResponseSheet = true
+            } label: {
+                Text(hasAnswered ? "Add Another Response" : "Share Response")
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(.txt))
+                    .foregroundStyle(.bgDark)
             }
-            
-            if !hasAnswered {
-                Button {
-                    print("Share Response button tapped")
-                    showResponseSheet = true
-                } label: {
-                    Text("Share Response")
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(.txt))
-                        .foregroundStyle(.bgDark)
-                }
-                .buttonStyle(.plain)
-            }
+            .buttonStyle(.plain)
         }
         .padding()
     }
@@ -298,7 +285,7 @@ struct FeedCard: View {
                 .blur(radius: !hasAnsweredCurrentPrompt ? 3 : 0)
                 .opacity(!hasAnsweredCurrentPrompt ? 0.80 : 1)
                 
-                // lock overlay - fixed logic
+                // lock overlay - only show if user hasn't answered
                 if !hasAnsweredCurrentPrompt {
                     VStack(spacing: 15) {
                         Image(systemName: "lock.fill")
@@ -393,14 +380,8 @@ struct CommentsSheet: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header
+                // Header - without cancel button
                 HStack {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .font(.system(size: 16, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.txt)
-                    
                     Spacer()
                     
                     Text("Comments")
@@ -412,7 +393,6 @@ struct CommentsSheet: View {
                     Text("\(comments.count)")
                         .font(.system(size: 14, weight: .medium, design: .monospaced))
                         .foregroundStyle(.gray)
-                        .frame(width: 60, alignment: .trailing)
                 }
                 .padding()
                 .background(.bgDark)
