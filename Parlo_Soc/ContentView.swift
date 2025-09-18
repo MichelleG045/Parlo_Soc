@@ -8,14 +8,16 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var appData = AppData()
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        MainSocialFeed()
+            .environmentObject(appData)
+            .onAppear {
+                if appData.repo == nil {
+                    appData.repo = MainSocialFeedRepository()
+                }
+            }
     }
 }
 

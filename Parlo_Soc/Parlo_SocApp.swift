@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct Parlo_SocApp: App {
+    @StateObject private var appData = AppData()   // ✅ Global app state
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(appData)  // ✅ inject into root view
         }
     }
 }
+

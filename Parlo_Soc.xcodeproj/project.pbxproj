@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		342BE6582E7BB85C00EE4D84 /* Shimmer in Frameworks */ = {isa = PBXBuildFile; productRef = 342BE6572E7BB85C00EE4D84 /* Shimmer */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		342BE6262E7BAE1F00EE4D84 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				342BE6582E7BB85C00EE4D84 /* Shimmer in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = Parlo_Soc;
 			packageProductDependencies = (
+				342BE6572E7BB85C00EE4D84 /* Shimmer */,
 			);
 			productName = Parlo_Soc;
 			productReference = 342BE6182E7BAE1E00EE4D84 /* Parlo_Soc.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 342BE60F2E7BAE1E00EE4D84;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				342BE6562E7BB85C00EE4D84 /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 342BE6192E7BAE1E00EE4D84 /* Products */;
 			projectDirPath = "";
@@ -397,6 +406,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -424,6 +435,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -550,6 +563,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		342BE6562E7BB85C00EE4D84 /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/markiv/SwiftUI-Shimmer";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		342BE6572E7BB85C00EE4D84 /* Shimmer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 342BE6562E7BB85C00EE4D84 /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */;
+			productName = Shimmer;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 342BE6102E7BAE1E00EE4D84 /* Project object */;
 }
