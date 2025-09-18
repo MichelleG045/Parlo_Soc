@@ -34,6 +34,7 @@ struct MainSocialFeed: View {
                     todayPromptCard
                         .padding(.bottom)
                     
+                    // Feed display - now enabled
                     LazyVStack(spacing: 16) {
                         ForEach(repo.feed) { item in
                             FeedCard(
@@ -223,76 +224,90 @@ struct FeedCard: View {
                 .foregroundStyle(.gray)
             }
             
-            // response content
-            VStack(alignment: .leading, spacing: 12) {
-                Text(item.promptText)
-                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.txt)
-                
-                ForEach(item.media, id: \.id) { media in
-                    switch media.kind {
-                    case .text:
-                        if let text = media.text {
-                            Text(text)
-                                .font(.system(size: 14, weight: .regular, design: .monospaced))
-                                .foregroundStyle(.txt)
+            // response content with blur logic
+            ZStack {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(item.promptText)
+                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.txt)
+                    
+                    ForEach(item.media, id: \.id) { media in
+                        switch media.kind {
+                        case .text:
+                            if let text = media.text {
+                                Text(text)
+                                    .font(.system(size: 14, weight: .regular, design: .monospaced))
+                                    .foregroundStyle(.txt)
+                            }
+                        case .audio:
+                            if let url = media.url {
+                                AudioPlayerView(url: url)
+                            }
+                        default:
+                            EmptyView()
                         }
-                    case .audio:
-                        if let url = media.url {
-                            AudioPlayerView(url: url)
-                        }
-                    default:
-                        EmptyView()
                     }
-                }
-                
-                // reactions
-                HStack(spacing: 20) {
-                    Button {
-                        liked.toggle()
-                        Task {
-                            if let repo = appData.repo {
-                                await repo.toggleLike(responseId: item.id, userId: appData.userID)
+                    
+                    // reactions
+                    HStack(spacing: 20) {
+                        Button {
+                            liked.toggle()
+                            Task {
+                                if let repo = appData.repo {
+                                    await repo.toggleLike(responseId: item.id, userId: appData.userID)
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: liked ? "heart.fill" : "heart")
+                                    .foregroundStyle(liked ? .txt : .gray)
+                                Text("\(item.likeCount)")
+                                    .foregroundStyle(.gray)
                             }
                         }
-                    } label: {
-                        HStack {
-                            Image(systemName: liked ? "heart.fill" : "heart")
-                                .foregroundStyle(liked ? .txt : .gray)
-                            Text("\(item.likeCount)")
-                                .foregroundStyle(.gray)
+                        
+                        Button {
+                            showCommentsSheet = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "message")
+                                    .foregroundStyle(.gray)
+                                Text("\(item.commentCount)")
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                        .sheet(isPresented: $showCommentsSheet) {
+                            CommentsSheet(feedItem: item)
+                                .environmentObject(appData)
+                        }
+                        
+                        Spacer()
+                        
+                        Button {
+                            bookmarked.toggle()
+                        } label: {
+                            Image(systemName: bookmarked ? "bookmark.fill" : "bookmark")
+                                .foregroundStyle(bookmarked ? .txt : .gray)
                         }
                     }
-                    
-                    Button {
-                        showCommentsSheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "message")
-                                .foregroundStyle(.gray)
-                            Text("\(item.commentCount)")
-                                .foregroundStyle(.gray)
-                        }
-                    }
-                    .sheet(isPresented: $showCommentsSheet) {
-                        CommentsSheet(feedItem: item)
-                            .environmentObject(appData)
-                    }
-                    
-                    Spacer()
-                    
-                    Button {
-                        bookmarked.toggle()
-                    } label: {
-                        Image(systemName: bookmarked ? "bookmark.fill" : "bookmark")
-                            .foregroundStyle(bookmarked ? .txt : .gray)
-                    }
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
                 }
-                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .padding()
+                .background(.bgLight)
+                .cornerRadius(16)
+                .blur(radius: !hasAnsweredCurrentPrompt ? 3 : 0)
+                .opacity(!hasAnsweredCurrentPrompt ? 0.80 : 1)
+                
+                // lock overlay - fixed logic
+                if !hasAnsweredCurrentPrompt {
+                    VStack(spacing: 15) {
+                        Image(systemName: "lock.fill")
+                        Text("Respond to View")
+                    }
+                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.txt)
+                }
             }
-            .padding()
-            .background(.bgLight)
-            .cornerRadius(16)
         }
         .padding()
     }
@@ -483,7 +498,7 @@ struct CommentsSheet: View {
                         TextField("Add a comment...", text: $newCommentText, axis: .vertical)
                             .textFieldStyle(.plain)
                             .font(.system(size: 14, weight: .regular, design: .monospaced))
-                            .foregroundStyle(.txt)  // Makes typed text white
+                            .foregroundStyle(.txt)
                             .lineLimit(1...4)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
@@ -518,7 +533,6 @@ struct CommentsSheet: View {
     }
     
     private func loadComments() {
-        // Always get fresh comments from repository
         if let repo = appData.repo,
            let currentFeedItem = repo.feed.first(where: { $0.id == feedItem.id }) {
             comments = currentFeedItem.comments.sorted { $0.createdAt < $1.createdAt }
@@ -526,7 +540,7 @@ struct CommentsSheet: View {
     }
     
     private func refreshComments() {
-        loadComments() // Refresh when a comment is liked
+        loadComments()
     }
     
     private func submitComment() {
@@ -537,14 +551,12 @@ struct CommentsSheet: View {
         
         isSubmitting = true
         
-        // Create author from current user
         let author = SocialResponseAuthor(
             name: appData.name.isEmpty ? "You" : appData.name,
             uid: appData.userID.isEmpty ? "current-user" : appData.userID,
             socialID: appData.socialID.isEmpty ? "@you" : appData.socialID
         )
         
-        // Update the repository
         Task {
             await appData.repo?.addComment(
                 responseId: feedItem.id,
@@ -555,7 +567,7 @@ struct CommentsSheet: View {
             DispatchQueue.main.async {
                 self.newCommentText = ""
                 self.isSubmitting = false
-                self.loadComments() // Refresh comments list
+                self.loadComments()
             }
         }
     }
@@ -611,18 +623,16 @@ struct CommentRow: View {
                     Task {
                         await appData.repo?.toggleCommentLike(commentId: comment.id, userId: appData.userID)
                         
-                        // Update local state based on repository
                         DispatchQueue.main.async {
                             self.liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.userID) ?? false
                             
-                            // Get updated like count from repository
                             if let repo = appData.repo,
                                let feedItem = repo.feed.first(where: { $0.comments.contains(where: { $0.id == comment.id }) }),
                                let updatedComment = feedItem.comments.first(where: { $0.id == comment.id }) {
                                 self.currentLikeCount = updatedComment.likeCount
                             }
                             
-                            self.onLikeChanged() // Refresh parent
+                            self.onLikeChanged()
                         }
                     }
                 } label: {
@@ -640,7 +650,6 @@ struct CommentRow: View {
         }
         .padding(.vertical, 8)
         .onAppear {
-            // Load saved like state and current count
             liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.userID) ?? false
             currentLikeCount = comment.likeCount
         }

@@ -14,6 +14,7 @@ struct ShareConfigs: View {
     
     @State private var shareWithFriends: Bool = true
     @State private var makePublic: Bool = false
+    @State private var includeAudio: Bool = true
     @State private var allowComments: Bool = true
     @State private var allowReactions: Bool = true
     @State private var allowBookmark: Bool = true
@@ -29,6 +30,7 @@ struct ShareConfigs: View {
             VStack(spacing: 12) {
                 row("person.2.fill", "Only your friends", $shareWithFriends)
                 row("globe.americas.fill", "Everyone on Parlo", $makePublic)
+                row("mic.fill", "Include audio recording", $includeAudio)
             }
             .onChange(of: makePublic) { _, newValue in
                 if newValue { shareWithFriends = true }
@@ -47,28 +49,31 @@ struct ShareConfigs: View {
                     let transcriptResp = SocialResponse(kind: .text, text: transcript, url: nil)
                     
                     var media = [transcriptResp]
-                    if let url = AppDataHolder.shared.lastAudioFile {
+                    if includeAudio, let url = AppDataHolder.shared.lastAudioFile {
                         let audioResp = SocialResponse(kind: .audio, text: nil, url: url)
                         media.append(audioResp)
                     }
                     
                     let author = SocialResponseAuthor(
-                        name: appData.name,
-                        uid: appData.userID,
-                        socialID: appData.socialID
+                        name: appData.name.isEmpty ? "You" : appData.name,
+                        uid: appData.userID.isEmpty ? "current-user" : appData.userID,
+                        socialID: appData.socialID.isEmpty ? "@you" : appData.socialID
                     )
                     
                     Task {
                         if let repo = appData.repo {
                             try? await repo.createResponse(
-                                promptId: UUID().uuidString,
-                                promptText: "Today's Prompt",
+                                promptId: "today-prompt",
+                                promptText: "what are you happy about",
                                 media: media,
                                 author: author,
                                 visibility: shareWithFriends ? .friends : .everyone
                             )
                         }
                     }
+                    
+                    // Mark prompt as completed so user can see other responses
+                    appData.completedPrompts.append("today-prompt")
                     
                     step = .record
                 } label: {
