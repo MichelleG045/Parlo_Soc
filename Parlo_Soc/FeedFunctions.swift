@@ -17,6 +17,9 @@ final class MainSocialFeedRepository: ObservableObject {
     /// Filtered posts for display
     @Published var feed: [FeedItem] = []
     
+    // Define friends vs strangers for filtering logic
+    private let friendUIDs = ["user-sarah", "user-alex", "user-jordan"]
+    
     // MARK: - Create Response
     func createResponse(
         promptId: String,
@@ -57,40 +60,47 @@ final class MainSocialFeedRepository: ObservableObject {
         print("Current feed will be updated by filter logic")
     }
     
-    // MARK: - Load Feed with Proper Filtering
+    // MARK: - Load Feed with FRIENDS vs STRANGERS Filtering
     func loadFeed(filter: FeedFilter, userID: String, limit: Int = 30) async {
         
         print("Loading feed with filter: \(filter)")
         print("Current userID: '\(userID)'")
         print("All posts authors:")
         for post in allPosts {
-            print("   - \(post.author.name) (uid: '\(post.author.uid)')")
+            let isFriend = friendUIDs.contains(post.author.uid)
+            let relationship = post.author.uid == userID ? "YOU" : (isFriend ? "FRIEND" : "STRANGER")
+            print("   - \(post.author.name) (uid: '\(post.author.uid)') - \(relationship)")
         }
         
         switch filter {
         case .all:
-            // Show all posts EXCEPT user's own posts (same as friends for now)
+            // Show everyone's posts (friends + strangers) EXCEPT user's own posts
             feed = allPosts.filter { post in
                 let isNotUser = post.author.uid != userID
+                print("   ALL: \(post.author.name) - isNotUser: \(isNotUser)")
                 return isNotUser
             }
-            print("Showing ALL posts (excluding user): \(feed.count)")
+            print("Showing ALL posts (friends + strangers, excluding user): \(feed.count)")
+            
         case .friends:
-            // Show only friends' posts (exclude user's own posts)
+            // Show ONLY friends' posts (exclude user + strangers)
             feed = allPosts.filter { post in
                 let isNotUser = post.author.uid != userID
-                print("   Post by \(post.author.name) (\(post.author.uid)) - isNotUser: \(isNotUser)")
-                return isNotUser
+                let isFriend = friendUIDs.contains(post.author.uid)
+                let showInFriends = isNotUser && isFriend
+                print("   FRIENDS: \(post.author.name) - isNotUser: \(isNotUser), isFriend: \(isFriend), show: \(showInFriends)")
+                return showInFriends
             }
-            print("Showing FRIENDS posts: \(feed.count)")
+            print("Showing FRIENDS posts only (excluding user + strangers): \(feed.count)")
+            
         case .myEntries:
             // Show only user's posts
             feed = allPosts.filter { post in
                 let isUser = post.author.uid == userID
-                print("   Post by \(post.author.name) (\(post.author.uid)) - isUser: \(isUser)")
+                print("   MY ENTRIES: \(post.author.name) - isUser: \(isUser)")
                 return isUser
             }
-            print("Showing MY posts: \(feed.count)")
+            print("Showing MY posts only: \(feed.count)")
         }
     }
     
@@ -229,7 +239,7 @@ final class MainSocialFeedRepository: ObservableObject {
         }
     }
     
-    // MARK: - Mock Data for Testing
+    // MARK: - Mock Data with FRIENDS vs STRANGERS
     func createMockData() {
         // Clear all previous comment like states to ensure fresh start
         let defaults = UserDefaults.standard
@@ -248,26 +258,18 @@ final class MainSocialFeedRepository: ObservableObject {
             }
         }
         
-        // FIXED: Simulate realistic prompt completion states
-        // All users who have posts in the feed should be marked as having completed the prompt
-        // You (current-user) - will be marked as answered when you create a post
-        // Sarah - has answered (unlocked posts) + HAS POST IN FEED
-        // Alex - has answered (unlocked posts) + HAS POST IN FEED ✅ ADDED
-        // Jordan - has answered (unlocked posts) + HAS POST IN FEED
-        
-        let answeredUsers = ["user-sarah", "user-alex", "user-jordan"]  // ✅ ADDED user-alex
+        // Mark completed prompts for friends + strangers (everyone has answered)
+        let answeredUsers = ["user-sarah", "user-alex", "user-jordan", "stranger-emily", "stranger-mark", "stranger-david"]
         for userId in answeredUsers {
             let promptKey = "\(userId)_completed_today-prompt"
             UserDefaults.standard.set(true, forKey: promptKey)
             print("Marked prompt as completed for: \(userId)")
         }
         
-        // current-user will be marked as completed when they create a post (in ShareConfigs)
-        
         let mockResponses = [
-            // Friend 1 - Text + Audio
+            // FRIENDS POSTS
             FeedItem(
-                id: "mock-1",
+                id: "friend-1",
                 author: SocialResponseAuthor(name: "Sarah Chen", uid: "user-sarah", socialID: "@sarah_c"),
                 promptId: "today-prompt",
                 promptText: "what are you happy about",
@@ -287,9 +289,8 @@ final class MainSocialFeedRepository: ObservableObject {
                 likes: ["user-mike", "user-lisa", "user-tom"]
             ),
             
-            // Friend 2 - Text Only
             FeedItem(
-                id: "mock-2",
+                id: "friend-2",
                 author: SocialResponseAuthor(name: "Alex Rivera", uid: "user-alex", socialID: "@alex_r"),
                 promptId: "today-prompt",
                 promptText: "what are you happy about",
@@ -308,9 +309,8 @@ final class MainSocialFeedRepository: ObservableObject {
                 likes: ["user-maya", "user-david", "user-sarah", "user-tom"]
             ),
             
-            // Friend 3 - Audio Heavy
             FeedItem(
-                id: "mock-3",
+                id: "friend-3",
                 author: SocialResponseAuthor(name: "Jordan Kim", uid: "user-jordan", socialID: "@jordan_k"),
                 promptId: "today-prompt",
                 promptText: "what are you happy about",
@@ -327,6 +327,64 @@ final class MainSocialFeedRepository: ObservableObject {
                 createdAt: Calendar.current.date(byAdding: .hour, value: -6, to: Date()) ?? Date(),
                 lastActivityAt: Calendar.current.date(byAdding: .minute, value: -20, to: Date()),
                 likes: ["user-emma", "user-sarah"]
+            ),
+            
+            // STRANGERS POSTS (Public posts from unknown users)
+            FeedItem(
+                id: "stranger-1",
+                author: SocialResponseAuthor(name: "Emily Watson", uid: "stranger-emily", socialID: "@emily_w"),
+                promptId: "today-prompt",
+                promptText: "what are you happy about",
+                media: [
+                    SocialResponse(kind: .text, text: "Just started my new job today! Excited for this new chapter and all the opportunities ahead.")
+                ],
+                visibility: .everyone,
+                likeCount: 15,
+                commentCount: 1,
+                comments: [
+                    SocialComment(id: "comment-6", author: SocialResponseAuthor(name: "Random User", uid: "random-1", socialID: "@random1"), text: "Congratulations on the new job!", createdAt: Calendar.current.date(byAdding: .minute, value: -25, to: Date()) ?? Date(), likeCount: 0)
+                ],
+                createdAt: Calendar.current.date(byAdding: .hour, value: -1, to: Date()) ?? Date(),
+                lastActivityAt: Calendar.current.date(byAdding: .minute, value: -25, to: Date()),
+                likes: ["random-1", "random-2", "random-3"]
+            ),
+            
+            FeedItem(
+                id: "stranger-2",
+                author: SocialResponseAuthor(name: "Mark Johnson", uid: "stranger-mark", socialID: "@mark_j"),
+                promptId: "today-prompt",
+                promptText: "what are you happy about",
+                media: [
+                    SocialResponse(kind: .text, text: "Finally finished reading my first novel in years! There's something magical about getting lost in a good story.")
+                ],
+                visibility: .everyone,
+                likeCount: 8,
+                commentCount: 0,
+                comments: [],
+                createdAt: Calendar.current.date(byAdding: .hour, value: -3, to: Date()) ?? Date(),
+                lastActivityAt: nil,
+                likes: ["random-4", "random-5"]
+            ),
+            
+            FeedItem(
+                id: "stranger-3",
+                author: SocialResponseAuthor(name: "David Chen", uid: "stranger-david", socialID: "@david_c"),
+                promptId: "today-prompt",
+                promptText: "what are you happy about",
+                media: [
+                    SocialResponse(kind: .text, text: "My dog learned a new trick today! After weeks of training, he finally mastered 'shake hands'. Small victories!")
+                ],
+                visibility: .everyone,
+                likeCount: 22,
+                commentCount: 3,
+                comments: [
+                    SocialComment(id: "comment-7", author: SocialResponseAuthor(name: "Pet Lover", uid: "random-6", socialID: "@petlover"), text: "Dogs are the best! What breed?", createdAt: Calendar.current.date(byAdding: .minute, value: -40, to: Date()) ?? Date(), likeCount: 1),
+                    SocialComment(id: "comment-8", author: SocialResponseAuthor(name: "Training Pro", uid: "random-7", socialID: "@trainer"), text: "Persistence pays off! Keep it up!", createdAt: Calendar.current.date(byAdding: .minute, value: -35, to: Date()) ?? Date(), likeCount: 0),
+                    SocialComment(id: "comment-9", author: SocialResponseAuthor(name: "Dog Mom", uid: "random-8", socialID: "@dogmom"), text: "Aww this made my day!", createdAt: Calendar.current.date(byAdding: .minute, value: -30, to: Date()) ?? Date(), likeCount: 2)
+                ],
+                createdAt: Calendar.current.date(byAdding: .hour, value: -5, to: Date()) ?? Date(),
+                lastActivityAt: Calendar.current.date(byAdding: .minute, value: -30, to: Date()),
+                likes: ["random-6", "random-7", "random-8", "random-9"]
             )
         ]
         
@@ -334,11 +392,12 @@ final class MainSocialFeedRepository: ObservableObject {
         allPosts = mockResponses
         feed = mockResponses // Start by showing all
         print("Mock data created: \(allPosts.count) posts loaded")
-        print("✅ FIXED: Prompt completion states:")
-        print("  - Sarah: answered (posts unlocked) + has post in feed")
-        print("  - Alex: answered (posts unlocked) + has post in feed ✅ FIXED")
-        print("  - Jordan: answered (posts unlocked) + has post in feed")
-        print("  - You: will be answered when you create a post")
+        print("FRIENDS vs STRANGERS test data:")
+        print("  - FRIENDS: Sarah Chen, Alex Rivera, Jordan Kim (3 posts)")
+        print("  - STRANGERS: Emily Watson, Mark Johnson, David Chen (3 posts)")
+        print("  - 'Friends' tab should show only friends")
+        print("  - 'All' tab should show friends + strangers")
+        print("  - Test from different user perspectives!")
     }
 }
 
