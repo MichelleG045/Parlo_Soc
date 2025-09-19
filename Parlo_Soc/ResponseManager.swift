@@ -7,10 +7,11 @@
 
 import SwiftUI
 
-
 struct ResponseManager: View {
     
     let promptTitle: String
+    let currentFilter: FeedFilter          // NEW: Current filter tab
+    let onResponsePosted: () -> Void       // NEW: Callback to refresh current tab
 
     @State var step: ResponseFlowStep = .record
 
@@ -50,7 +51,12 @@ struct ResponseManager: View {
                 case .record:
                     RecResponseSheet(step: $step, promptTitle: promptTitle)
                 case .config:
-                    ShareConfigs(step: $step)
+                    // PASS FILTER CONTEXT TO SHARECONFIGS
+                    ShareConfigs(
+                        step: $step,
+                        currentFilter: currentFilter,      // Pass current filter
+                        onResponsePosted: onResponsePosted // Pass refresh callback
+                    )
                 }
             }
             
@@ -83,7 +89,12 @@ enum ResponseFlowStep {
     case config
 }
 
-
 #Preview {
-    ResponseManager(promptTitle: "What is one thing you're happy about")
+    ResponseManager(
+        promptTitle: "What is one thing you're happy about",
+        currentFilter: .friends,
+        onResponsePosted: {
+            print("Preview: Response posted callback")
+        }
+    )
 }

@@ -13,6 +13,7 @@ struct MainSocialFeed: View {
     
     @State private var filter: FeedFilter = .friends
     @State private var showResponseSheet = false
+    @State private var showUserSwitcher = false
     
     @State var todaysPrompt = SocialPrompt(
         id: "today-prompt",
@@ -30,6 +31,7 @@ struct MainSocialFeed: View {
             
             ScrollView {
                 VStack(spacing: 16) {
+                    headerWithUserSwitcher
                     filterBar
                     todayPromptCard
                         .padding(.bottom)
@@ -40,7 +42,7 @@ struct MainSocialFeed: View {
                             FeedCard(
                                 item: item,
                                 currentPromptId: todaysPrompt.id,
-                                hasAnsweredCurrentPrompt: appData.completedPrompts.contains(todaysPrompt.id)
+                                hasAnsweredCurrentPrompt: userHasAnsweredPrompt()
                             )
                             .environmentObject(appData)
                         }
@@ -55,19 +57,62 @@ struct MainSocialFeed: View {
             if appData.repo == nil {
                 appData.repo = repo
             }
-            
-            // Load mock data for testing
             repo.createMockData()
-            
-            Task { await repo.loadFeed(filter: filter, userID: appData.userID, limit: 30) }
+            Task { await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30) }
         }
         .onChange(of: filter) { _ in
-            Task { await repo.loadFeed(filter: filter, userID: appData.userID, limit: 30) }
+            Task { await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30) }
+        }
+        .onChange(of: appData.viewingAsUser) { _ in
+            Task { await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30) }
         }
         .sheet(isPresented: $showResponseSheet) {
-            ResponseManager(promptTitle: todaysPrompt.prompt)
+            // PASS CURRENT FILTER AND REFRESH CALLBACK
+            ResponseManager(
+                promptTitle: todaysPrompt.prompt,
+                currentFilter: filter,
+                onResponsePosted: {
+                    // Refresh the current filter after posting
+                    Task {
+                        await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30)
+                        print("🔄 Refreshed \(filter.title) tab after posting")
+                    }
+                }
+            )
+            .environmentObject(appData)
+        }
+        .sheet(isPresented: $showUserSwitcher) {
+            UserSwitcherSheet()
                 .environmentObject(appData)
         }
+    }
+    
+    // Header with user switcher
+    private var headerWithUserSwitcher: some View {
+        HStack {
+            Text("Viewing as: \(getCurrentUserName())")
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(.gray)
+            
+            Spacer()
+            
+            Button("Switch User") {
+                showUserSwitcher = true
+            }
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundStyle(.blue)
+        }
+        .padding(.horizontal)
+    }
+    
+    private func getCurrentUserName() -> String {
+        return appData.availableUsers.first { $0.0 == appData.viewingAsUser }?.1 ?? "Unknown"
+    }
+    
+    private func userHasAnsweredPrompt() -> Bool {
+        // Check if the current viewing user has answered the prompt
+        let promptKey = "\(appData.viewingAsUser)_completed_\(todaysPrompt.id)"
+        return UserDefaults.standard.bool(forKey: promptKey)
     }
     
     // filter bar
@@ -97,7 +142,7 @@ struct MainSocialFeed: View {
     // daily prompt card
     @ViewBuilder
     private var todayPromptCard: some View {
-        let hasAnswered = appData.completedPrompts.contains(todaysPrompt.id)
+        let hasAnswered = userHasAnsweredPrompt()
         
         VStack(alignment: .leading, spacing: 20) {
             // header
@@ -120,19 +165,30 @@ struct MainSocialFeed: View {
                 .foregroundStyle(.txt)
                 .multilineTextAlignment(.leading)
             
-            // Always show the Share Response button
-            Button {
-                print("Share Response button tapped")
-                showResponseSheet = true
-            } label: {
-                Text(hasAnswered ? "Add Another Response" : "Share Response")
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+            // Show answer button only if viewing as the main user
+            if appData.viewingAsUser == appData.userID {
+                Button {
+                    print("Share Response button tapped from \(filter.title) tab")
+                    showResponseSheet = true
+                } label: {
+                    Text(hasAnswered ? "Add Another Response" : "Share Response")
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(.txt))
+                        .foregroundStyle(.bgDark)
+                }
+                .buttonStyle(.plain)
+            } else {
+                // Show viewing perspective info
+                Text("Viewing as \(getCurrentUserName()) - switch to 'You' to respond")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.gray.opacity(0.8))
+                    .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(.txt))
-                    .foregroundStyle(.bgDark)
+                    .background(.bgLight.opacity(0.3))
+                    .cornerRadius(8)
             }
-            .buttonStyle(.plain)
         }
         .padding()
     }
@@ -143,6 +199,85 @@ struct MainSocialFeed: View {
         let s = seconds % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s)
                      : String(format: "%d:%02d", m, s)
+    }
+}
+
+// MARK: - User Switcher Sheet
+struct UserSwitcherSheet: View {
+    @EnvironmentObject var appData: AppData
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Text("Switch User Perspective")
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.txt)
+                    .padding(.top)
+                
+                Text("Test how your posts appear to different users")
+                    .font(.system(size: 14, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.gray)
+                    .multilineTextAlignment(.center)
+                
+                LazyVStack(spacing: 12) {
+                    ForEach(appData.availableUsers, id: \.0) { userId, userName in
+                        Button {
+                            appData.viewingAsUser = userId
+                            print("Switched to viewing as: \(userName) (\(userId))")
+                            dismiss()
+                        } label: {
+                            HStack {
+                                Image(systemName: "person.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(userId == appData.viewingAsUser ? .blue : .gray)
+                                
+                                Text(userName)
+                                    .font(.system(size: 16, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(.txt)
+                                
+                                if userId == appData.userID {
+                                    Text("(Main User)")
+                                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                                        .foregroundStyle(.blue)
+                                }
+                                
+                                Spacer()
+                                
+                                if userId == appData.viewingAsUser {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                            .padding()
+                            .background(.bgLight.opacity(0.3))
+                            .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                Text("Note: You can only create posts while viewing as 'You'")
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            .background(.bgDark)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundStyle(.blue)
+                }
+            }
+        }
     }
 }
 
@@ -245,7 +380,7 @@ struct FeedCard: View {
                             liked.toggle()
                             Task {
                                 if let repo = appData.repo {
-                                    await repo.toggleLike(responseId: item.id, userId: appData.userID)
+                                    await repo.toggleLike(responseId: item.id, userId: appData.viewingAsUser)
                                 }
                             }
                         } label: {
@@ -301,6 +436,9 @@ struct FeedCard: View {
             }
         }
         .padding()
+        .onAppear {
+            liked = item.likes.contains(appData.viewingAsUser)
+        }
     }
 }
 
@@ -365,7 +503,7 @@ struct AudioPlayerView: View {
                 player?.play()
                 isPlaying = true
             } catch {
-                print("Audio playback failed:", error)
+                print("Audio playbook failed:", error)
             }
         }
     }
@@ -384,7 +522,7 @@ struct CommentsSheet: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header - without cancel button
+                // Header
                 HStack {
                     Spacer()
                     
@@ -535,10 +673,11 @@ struct CommentsSheet: View {
         
         isSubmitting = true
         
+        let currentUser = appData.availableUsers.first { $0.0 == appData.viewingAsUser }
         let author = SocialResponseAuthor(
-            name: appData.name.isEmpty ? "You" : appData.name,
-            uid: appData.userID.isEmpty ? "current-user" : appData.userID,
-            socialID: appData.socialID.isEmpty ? "@you" : appData.socialID
+            name: currentUser?.1 ?? "Unknown",
+            uid: appData.viewingAsUser,
+            socialID: "@\(currentUser?.1.lowercased().replacingOccurrences(of: " ", with: "_") ?? "unknown")"
         )
         
         Task {
@@ -605,10 +744,10 @@ struct CommentRow: View {
             HStack(spacing: 16) {
                 Button {
                     Task {
-                        await appData.repo?.toggleCommentLike(commentId: comment.id, userId: appData.userID)
+                        await appData.repo?.toggleCommentLike(commentId: comment.id, userId: appData.viewingAsUser)
                         
                         DispatchQueue.main.async {
-                            self.liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.userID) ?? false
+                            self.liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
                             
                             if let repo = appData.repo,
                                let feedItem = repo.feed.first(where: { $0.comments.contains(where: { $0.id == comment.id }) }),
@@ -634,7 +773,7 @@ struct CommentRow: View {
         }
         .padding(.vertical, 8)
         .onAppear {
-            liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.userID) ?? false
+            liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
             currentLikeCount = comment.likeCount
         }
     }

@@ -14,6 +14,7 @@ class AppData: ObservableObject {
     // core data
     @Published var signedIn = false
     @Published var userID = "current-user"  // Set default instead of empty string
+    @Published var viewingAsUser = "current-user"  // Who we're viewing the feed as
     @Published var name: String = "You"     // Set default name
     @Published var phone: String = ""
     @Published var pfp: UIImage? = nil
@@ -84,9 +85,16 @@ class AppData: ObservableObject {
     // Main social feed repository
     @Published var repo: MainSocialFeedRepository?
     
+    // Available test users for switching perspectives
+    let availableUsers = [
+        ("current-user", "You"),
+        ("user-sarah", "Sarah Chen"),
+        ("user-alex", "Alex Rivera"),
+        ("user-jordan", "Jordan Kim")
+    ]
+    
 }
 
-// ... rest of your existing code stays the same
 
 struct JournalEntry: Identifiable, Codable {
     

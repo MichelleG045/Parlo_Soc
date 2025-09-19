@@ -240,6 +240,30 @@ final class MainSocialFeedRepository: ObservableObject {
             }
         }
         
+        // Clear any existing prompt completion states for fresh testing
+        for key in defaults.dictionaryRepresentation().keys {
+            if key.contains("_completed_") {
+                defaults.removeObject(forKey: key)
+                print("Cleared prompt completion key: \(key)")
+            }
+        }
+        
+        // Simulate realistic prompt completion states
+        // You (current-user) - will be marked as answered when you create a post
+        // Sarah - has answered (unlocked posts)
+        // Alex - has NOT answered (posts still blurred)
+        // Jordan - has answered (unlocked posts)
+        
+        let answeredUsers = ["user-sarah", "user-jordan"]
+        for userId in answeredUsers {
+            let promptKey = "\(userId)_completed_today-prompt"
+            UserDefaults.standard.set(true, forKey: promptKey)
+            print("Marked prompt as completed for: \(userId)")
+        }
+        
+        // current-user will be marked as completed when they create a post (in ShareConfigs)
+        // user-alex deliberately left out so posts remain blurred when viewing as Alex
+        
         let mockResponses = [
             // Friend 1 - Text + Audio
             FeedItem(
@@ -310,7 +334,11 @@ final class MainSocialFeedRepository: ObservableObject {
         allPosts = mockResponses
         feed = mockResponses // Start by showing all
         print("Mock data created: \(allPosts.count) posts loaded")
-        print("All comment like states cleared for fresh start")
+        print("Prompt completion states:")
+        print("  - Sarah: answered (posts unlocked)")
+        print("  - Alex: NOT answered (posts blurred)")
+        print("  - Jordan: answered (posts unlocked)")
+        print("  - You: will be answered when you create a post")
     }
 }
 
