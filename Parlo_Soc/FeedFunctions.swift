@@ -27,6 +27,7 @@ final class MainSocialFeedRepository: ObservableObject {
     ) async throws {
         
         print("Repository creating response...")
+        print("   Author: \(author.name) (uid: '\(author.uid)')")
         print("   Media count: \(media.count)")
         for (index, item) in media.enumerated() {
             print("   Media \(index): \(item.kind) - \(item.text ?? item.url?.lastPathComponent ?? "nil")")
@@ -48,52 +49,75 @@ final class MainSocialFeedRepository: ObservableObject {
             likes: []
         )
         
-        // Add to master list (newest first)
+        // Add to master list ONLY (newest first)
         allPosts.insert(item, at: 0)
         
-        // Add to current display feed (newest first)
-        feed.insert(item, at: 0)
-        
-        print("Post added to feed. Total posts: \(allPosts.count)")
+        // DO NOT add to current feed display - let the filter logic handle it
+        print("Post added to master list. Total posts: \(allPosts.count)")
+        print("Current feed will be updated by filter logic")
     }
     
     // MARK: - Load Feed with Proper Filtering
     func loadFeed(filter: FeedFilter, userID: String, limit: Int = 30) async {
         
-        switch filter {
-        case .all:
-            // Show all posts (friends + user's own posts)
-            feed = allPosts
-        case .friends:
-            // Show only friends' posts (exclude user's own posts)
-            feed = allPosts.filter { $0.author.uid != userID }
-        case .myEntries:
-            // Show only user's posts
-            feed = allPosts.filter { $0.author.uid == userID }
+        print("Loading feed with filter: \(filter)")
+        print("Current userID: '\(userID)'")
+        print("All posts authors:")
+        for post in allPosts {
+            print("   - \(post.author.name) (uid: '\(post.author.uid)')")
         }
         
-        print("Feed loaded with \(feed.count) items for filter: \(filter)")
-        print("   All posts count: \(allPosts.count)")
-        print("   Filter: \(filter)")
-        print("   User ID: \(userID)")
+        switch filter {
+        case .all:
+            // Show all posts EXCEPT user's own posts (same as friends for now)
+            feed = allPosts.filter { post in
+                let isNotUser = post.author.uid != userID
+                return isNotUser
+            }
+            print("Showing ALL posts (excluding user): \(feed.count)")
+        case .friends:
+            // Show only friends' posts (exclude user's own posts)
+            feed = allPosts.filter { post in
+                let isNotUser = post.author.uid != userID
+                print("   Post by \(post.author.name) (\(post.author.uid)) - isNotUser: \(isNotUser)")
+                return isNotUser
+            }
+            print("Showing FRIENDS posts: \(feed.count)")
+        case .myEntries:
+            // Show only user's posts
+            feed = allPosts.filter { post in
+                let isUser = post.author.uid == userID
+                print("   Post by \(post.author.name) (\(post.author.uid)) - isUser: \(isUser)")
+                return isUser
+            }
+            print("Showing MY posts: \(feed.count)")
+        }
     }
     
     // MARK: - Toggle Like
     func toggleLike(responseId: String, userId: String) async {
         
-        // Update in both master list and display list
+        print("Toggling post like - responseId: \(responseId), userId: \(userId)")
+        
+        // Update in master list
         if let idx = allPosts.firstIndex(where: { $0.id == responseId }) {
             var item = allPosts[idx]
+            
+            print("   Post by \(item.author.name), current likes: \(item.likes), count: \(item.likeCount)")
+            
             if item.likes.contains(userId) {
                 item.likes.remove(userId)
                 item.likeCount -= 1
+                print("   Unliked post, new count: \(item.likeCount)")
             } else {
                 item.likes.insert(userId)
                 item.likeCount += 1
+                print("   Liked post, new count: \(item.likeCount)")
             }
             allPosts[idx] = item
         }
         
+        // Update in display list
         if let idx = feed.firstIndex(where: { $0.id == responseId }) {
             var item = feed[idx]
             if item.likes.contains(userId) {
@@ -138,19 +162,25 @@ final class MainSocialFeedRepository: ObservableObject {
     // MARK: - Toggle Comment Like
     func toggleCommentLike(commentId: String, userId: String) async {
         let likeKey = "comment_like_\(commentId)_\(userId)"
-        let hasLiked = UserDefaults.standard.bool(forKey: likeKey)
+        let wasLiked = UserDefaults.standard.bool(forKey: likeKey)
+        
+        print("Toggling comment like - commentId: \(commentId), wasLiked: \(wasLiked)")
         
         // Update in master list
         for (feedIndex, var feedItem) in allPosts.enumerated() {
             if let commentIndex = feedItem.comments.firstIndex(where: { $0.id == commentId }) {
                 var comment = feedItem.comments[commentIndex]
                 
-                if hasLiked {
+                if wasLiked {
+                    // Was liked, now unlike
                     comment.likeCount = max(0, comment.likeCount - 1)
                     UserDefaults.standard.set(false, forKey: likeKey)
+                    print("   Unliked comment: \(comment.likeCount)")
                 } else {
+                    // Was not liked, now like
                     comment.likeCount += 1
                     UserDefaults.standard.set(true, forKey: likeKey)
+                    print("   Liked comment: \(comment.likeCount)")
                 }
                 
                 feedItem.comments[commentIndex] = comment
@@ -164,9 +194,11 @@ final class MainSocialFeedRepository: ObservableObject {
             if let commentIndex = feedItem.comments.firstIndex(where: { $0.id == commentId }) {
                 var comment = feedItem.comments[commentIndex]
                 
-                if hasLiked {
+                if wasLiked {
+                    // Was liked, now unlike
                     comment.likeCount = max(0, comment.likeCount - 1)
                 } else {
+                    // Was not liked, now like
                     comment.likeCount += 1
                 }
                 
@@ -180,7 +212,8 @@ final class MainSocialFeedRepository: ObservableObject {
     // MARK: - Check if user liked comment
     func hasUserLikedComment(commentId: String, userId: String) -> Bool {
         let likeKey = "comment_like_\(commentId)_\(userId)"
-        return UserDefaults.standard.bool(forKey: likeKey)
+        let isLiked = UserDefaults.standard.bool(forKey: likeKey)
+        return isLiked
     }
     
     // MARK: - Fetch Comments
@@ -198,6 +231,15 @@ final class MainSocialFeedRepository: ObservableObject {
     
     // MARK: - Mock Data for Testing
     func createMockData() {
+        // Clear all previous comment like states to ensure fresh start
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys {
+            if key.hasPrefix("comment_like_") {
+                defaults.removeObject(forKey: key)
+                print("Cleared UserDefaults key: \(key)")
+            }
+        }
+        
         let mockResponses = [
             // Friend 1 - Text + Audio
             FeedItem(
@@ -210,15 +252,15 @@ final class MainSocialFeedRepository: ObservableObject {
                     SocialResponse(kind: .audio, text: nil, url: URL(string: "file://mock-audio-sarah.m4a"))
                 ],
                 visibility: .friends,
-                likeCount: 8,
-                commentCount: 3,
+                likeCount: 3,
+                commentCount: 2,
                 comments: [
-                    SocialComment(id: "comment-1", author: SocialResponseAuthor(name: "Mike", uid: "user-mike", socialID: "@mike_j"), text: "Your garden looks amazing!", createdAt: Calendar.current.date(byAdding: .minute, value: -30, to: Date()) ?? Date(), likeCount: 2),
-                    SocialComment(id: "comment-2", author: SocialResponseAuthor(name: "Lisa", uid: "user-lisa", socialID: "@lisa_k"), text: "So proud of you! Can't wait to see it in person", createdAt: Calendar.current.date(byAdding: .minute, value: -15, to: Date()) ?? Date(), likeCount: 1)
+                    SocialComment(id: "comment-1", author: SocialResponseAuthor(name: "Mike", uid: "user-mike", socialID: "@mike_j"), text: "Your garden looks amazing!", createdAt: Calendar.current.date(byAdding: .minute, value: -30, to: Date()) ?? Date(), likeCount: 0),
+                    SocialComment(id: "comment-2", author: SocialResponseAuthor(name: "Lisa", uid: "user-lisa", socialID: "@lisa_k"), text: "So proud of you! Can't wait to see it in person", createdAt: Calendar.current.date(byAdding: .minute, value: -15, to: Date()) ?? Date(), likeCount: 0)
                 ],
                 createdAt: Calendar.current.date(byAdding: .hour, value: -2, to: Date()) ?? Date(),
                 lastActivityAt: Calendar.current.date(byAdding: .minute, value: -15, to: Date()),
-                likes: ["user-mike", "user-lisa", "user-tom", "current-user"]
+                likes: ["user-mike", "user-lisa", "user-tom"]
             ),
             
             // Friend 2 - Text Only
@@ -231,11 +273,11 @@ final class MainSocialFeedRepository: ObservableObject {
                     SocialResponse(kind: .text, text: "Got accepted into my dream graduate program! Still can't believe it's real. All those late study nights finally paid off.")
                 ],
                 visibility: .friends,
-                likeCount: 12,
-                commentCount: 5,
+                likeCount: 4,
+                commentCount: 2,
                 comments: [
-                    SocialComment(id: "comment-3", author: SocialResponseAuthor(name: "Maya", uid: "user-maya", socialID: "@maya_p"), text: "CONGRATULATIONS!! This is huge!", createdAt: Calendar.current.date(byAdding: .hour, value: -1, to: Date()) ?? Date(), likeCount: 3),
-                    SocialComment(id: "comment-4", author: SocialResponseAuthor(name: "David", uid: "user-david", socialID: "@david_l"), text: "You totally deserve this! Your hard work shows", createdAt: Calendar.current.date(byAdding: .minute, value: -45, to: Date()) ?? Date(), likeCount: 1)
+                    SocialComment(id: "comment-3", author: SocialResponseAuthor(name: "Maya", uid: "user-maya", socialID: "@maya_p"), text: "CONGRATULATIONS!! This is huge!", createdAt: Calendar.current.date(byAdding: .hour, value: -1, to: Date()) ?? Date(), likeCount: 0),
+                    SocialComment(id: "comment-4", author: SocialResponseAuthor(name: "David", uid: "user-david", socialID: "@david_l"), text: "You totally deserve this! Your hard work shows", createdAt: Calendar.current.date(byAdding: .minute, value: -45, to: Date()) ?? Date(), likeCount: 0)
                 ],
                 createdAt: Calendar.current.date(byAdding: .hour, value: -4, to: Date()) ?? Date(),
                 lastActivityAt: Calendar.current.date(byAdding: .minute, value: -45, to: Date()),
@@ -253,14 +295,14 @@ final class MainSocialFeedRepository: ObservableObject {
                     SocialResponse(kind: .audio, text: nil, url: URL(string: "file://mock-audio-jordan.m4a"))
                 ],
                 visibility: .friends,
-                likeCount: 6,
+                likeCount: 2,
                 commentCount: 1,
                 comments: [
                     SocialComment(id: "comment-5", author: SocialResponseAuthor(name: "Emma", uid: "user-emma", socialID: "@emma_w"), text: "Family stories are the best treasures", createdAt: Calendar.current.date(byAdding: .minute, value: -20, to: Date()) ?? Date(), likeCount: 0)
                 ],
                 createdAt: Calendar.current.date(byAdding: .hour, value: -6, to: Date()) ?? Date(),
                 lastActivityAt: Calendar.current.date(byAdding: .minute, value: -20, to: Date()),
-                likes: ["user-emma", "user-sarah", "current-user"]
+                likes: ["user-emma", "user-sarah"]
             )
         ]
         
@@ -268,6 +310,7 @@ final class MainSocialFeedRepository: ObservableObject {
         allPosts = mockResponses
         feed = mockResponses // Start by showing all
         print("Mock data created: \(allPosts.count) posts loaded")
+        print("All comment like states cleared for fresh start")
     }
 }
 

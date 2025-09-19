@@ -45,7 +45,7 @@ struct ShareConfigs: View {
             
             // action buttons
             VStack(spacing: 20) {
-                // submit - NOW WITH WORKING LOGIC
+                // submit - WITH WORKING LOGIC AND CONSISTENT USER ID
                 Button {
                     createPost()
                 } label: {
@@ -109,13 +109,15 @@ struct ShareConfigs: View {
             print("Audio not included")
         }
         
-        // Create author
+        // Create author with consistent user ID
         let author = SocialResponseAuthor(
             name: appData.name.isEmpty ? "You" : appData.name,
             uid: appData.userID.isEmpty ? "current-user" : appData.userID,
             socialID: appData.socialID.isEmpty ? "@you" : appData.socialID
         )
         
+        print("Creating post with author UID: '\(author.uid)'")
+        print("App userID: '\(appData.userID)'")
         print("Author: \(author.name) (\(author.socialID))")
         
         // Create the post

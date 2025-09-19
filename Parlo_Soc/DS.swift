@@ -13,8 +13,8 @@ class AppData: ObservableObject {
     
     // core data
     @Published var signedIn = false
-    @Published var userID = ""
-    @Published var name: String = ""
+    @Published var userID = "current-user"  // Set default instead of empty string
+    @Published var name: String = "You"     // Set default name
     @Published var phone: String = ""
     @Published var pfp: UIImage? = nil
     
@@ -74,7 +74,7 @@ class AppData: ObservableObject {
     @Published var completedPrompts: [String] = []
     @Published var cachedPFP: [String: UIImage] = [:]
     @Published var socialRepo: SocialRepository?
-    @Published var socialID: String = ""
+    @Published var socialID: String = "@you"  // Set default
     @Published var friends: [NetworkFriend] = []
     @Published var cachedFriendPFP: [String : UIImage] = [:]
     @Published var cachedNetworkInsights: [String : Date] = [:]
@@ -86,6 +86,7 @@ class AppData: ObservableObject {
     
 }
 
+// ... rest of your existing code stays the same
 
 struct JournalEntry: Identifiable, Codable {
     
