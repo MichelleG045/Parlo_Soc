@@ -14,6 +14,7 @@ struct MainSocialFeed: View {
     @State private var filter: FeedFilter = .friends
     @State private var showResponseSheet = false
     @State private var showUserSwitcher = false
+    @State private var showSavedResponses = false
     
     @State var todaysPrompt = SocialPrompt(
         id: "today-prompt",
@@ -99,6 +100,21 @@ struct MainSocialFeed: View {
             Button("Switch User") {
                 showUserSwitcher = true
             }
+            
+            
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundStyle(.blue)
+
+            Button("Saved Responses") {
+                showSavedResponses = true
+            }
+            .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .foregroundStyle(.blue)
+            .sheet(isPresented: $showSavedResponses) {
+                SavedResponsesSheet()
+                    .environmentObject(appData)
+            }
+
             .font(.system(size: 12, weight: .medium, design: .monospaced))
             .foregroundStyle(.blue)
         }
@@ -269,14 +285,6 @@ struct UserSwitcherSheet: View {
             .background(.bgDark)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .foregroundStyle(.blue)
-                }
-            }
         }
     }
 }
@@ -411,6 +419,11 @@ struct FeedCard: View {
                         
                         Button {
                             bookmarked.toggle()
+                            if bookmarked {
+                                appData.savedResponses[appData.viewingAsUser, default: []].append(item)
+                            } else {
+                                appData.savedResponses[appData.viewingAsUser]?.removeAll { $0.id == item.id }
+                            }
                         } label: {
                             Image(systemName: bookmarked ? "bookmark.fill" : "bookmark")
                                 .foregroundStyle(bookmarked ? .txt : .gray)
@@ -438,9 +451,15 @@ struct FeedCard: View {
         .padding()
         .onAppear {
             liked = item.likes.contains(appData.viewingAsUser)
+            bookmarked = appData.savedResponses[appData.viewingAsUser]?
+                .contains(where: { $0.id == item.id }) ?? false
+            }
+        .onChange(of: appData.viewingAsUser) { _ in
+            bookmarked = appData.savedResponses[appData.viewingAsUser]?
+                .contains(where: { $0.id == item.id }) ?? false
+            }
         }
     }
-}
 
 enum FeedFilter: CaseIterable {
     case friends, all, myEntries
@@ -778,3 +797,12 @@ struct CommentRow: View {
         }
     }
 }
+
+
+
+
+
+
+
+
+

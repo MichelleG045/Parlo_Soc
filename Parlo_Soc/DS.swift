@@ -85,6 +85,10 @@ class AppData: ObservableObject {
     // Main social feed repository
     @Published var repo: MainSocialFeedRepository?
     
+    // ✅ NEW: Saved responses
+    @Published var savedResponses: [String: [FeedItem]] = [:]
+
+    
     // Available test users for switching perspectives
     let availableUsers = [
         ("current-user", "You"),
@@ -207,3 +211,4 @@ let HardcodedPrompts: [String] = [
     "How did you connect?",
     "What's been helping lately?"
 ]
+
