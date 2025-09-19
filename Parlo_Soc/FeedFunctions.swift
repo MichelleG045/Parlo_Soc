@@ -60,6 +60,36 @@ final class MainSocialFeedRepository: ObservableObject {
         print("Current feed will be updated by filter logic")
     }
     
+    // MARK: - Delete Response
+    func deleteResponse(responseId: String, userId: String) async throws {
+        print("Attempting to delete response: \(responseId) by user: \(userId)")
+        
+        // Find the post in master list
+        guard let postIndex = allPosts.firstIndex(where: { $0.id == responseId }) else {
+            print("Post not found for deletion")
+            throw NSError(domain: "PostNotFound", code: 404, userInfo: nil)
+        }
+        
+        let post = allPosts[postIndex]
+        
+        // Check if user owns the post
+        guard post.author.uid == userId else {
+            print("User \(userId) cannot delete post by \(post.author.uid)")
+            throw NSError(domain: "Unauthorized", code: 403, userInfo: nil)
+        }
+        
+        // Remove from master list
+        allPosts.remove(at: postIndex)
+        print("Deleted post '\(responseId)' by \(post.author.name)")
+        print("Remaining posts: \(allPosts.count)")
+        
+        // Remove from current feed if it exists there
+        if let feedIndex = feed.firstIndex(where: { $0.id == responseId }) {
+            feed.remove(at: feedIndex)
+            print("Removed from current feed display")
+        }
+    }
+    
     // MARK: - Load Feed with CORRECTED VISIBILITY Filtering
     func loadFeed(filter: FeedFilter, userID: String, limit: Int = 30) async {
         

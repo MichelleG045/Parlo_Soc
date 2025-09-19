@@ -43,7 +43,8 @@ struct MainSocialFeed: View {
                             FeedCard(
                                 item: item,
                                 currentPromptId: todaysPrompt.id,
-                                hasAnsweredCurrentPrompt: userHasAnsweredPrompt()
+                                hasAnsweredCurrentPrompt: userHasAnsweredPrompt(),
+                                currentFilter: filter  // PASS CURRENT FILTER
                             )
                             .environmentObject(appData)
                         }
@@ -100,8 +101,6 @@ struct MainSocialFeed: View {
             Button("Switch User") {
                 showUserSwitcher = true
             }
-            
-            
             .font(.system(size: 12, weight: .medium, design: .monospaced))
             .foregroundStyle(.blue)
 
@@ -114,9 +113,6 @@ struct MainSocialFeed: View {
                 SavedResponsesSheet()
                     .environmentObject(appData)
             }
-
-            .font(.system(size: 12, weight: .medium, design: .monospaced))
-            .foregroundStyle(.blue)
         }
         .padding(.horizontal)
     }
@@ -181,22 +177,19 @@ struct MainSocialFeed: View {
                 .foregroundStyle(.txt)
                 .multilineTextAlignment(.leading)
             
-            // Show answer button only if viewing as the main user
-                // Show answer button for all users
-                Button {
-                    print("Share Response button tapped from \(filter.title) tab by \(getCurrentUserName())")
-                    showResponseSheet = true
-                } label: {
-                    Text(hasAnswered ? "Add Another Response" : "Share Response")
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(.txt))
-                        .foregroundStyle(.bgDark)
-                }
-                .buttonStyle(.plain)
-
-            
+            // Show answer button for all users
+            Button {
+                print("Share Response button tapped from \(filter.title) tab by \(getCurrentUserName())")
+                showResponseSheet = true
+            } label: {
+                Text(hasAnswered ? "Add Another Response" : "Share Response")
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(.txt))
+                    .foregroundStyle(.bgDark)
+            }
+            .buttonStyle(.plain)
         }
         .padding()
     }
@@ -286,16 +279,23 @@ struct FeedCard: View {
     let item: FeedItem
     let currentPromptId: String
     let hasAnsweredCurrentPrompt: Bool
+    let currentFilter: FeedFilter  // ADD CURRENT FILTER
     
     @State private var bookmarked = false
     @State private var showCommentsSheet = false
+    @State private var showDeleteAlert = false  // NEW - DELETE ALERT
     @State var loadingPFP = false
     @State var userPFP: UIImage? = nil
     @State var liked = false
     
+    // Check if current user owns this post
+    private var isOwnPost: Bool {
+        item.author.uid == appData.viewingAsUser
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
-            // user info
+            // user info with delete button
             HStack(spacing: 10) {
                 Group {
                     if loadingPFP {
@@ -343,6 +343,18 @@ struct FeedCard: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 2) {
+                    // DELETE BUTTON - only show for own posts
+                    if isOwnPost {
+                        Button {
+                            showDeleteAlert = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.red.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
                     Text(item.createdAt, style: .date)
                     Text(item.createdAt, style: .time)
                 }
@@ -452,8 +464,34 @@ struct FeedCard: View {
             bookmarked = appData.savedResponses[appData.viewingAsUser]?
                 .contains(where: { $0.id == item.id }) ?? false
         }
+        // DELETE CONFIRMATION ALERT
+        .alert("Delete Response", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                deletePost()
+            }
+        } message: {
+            Text("Are you sure you want to delete this response? This action cannot be undone.")
         }
     }
+    
+    // MARK: - Delete Post Function
+    private func deletePost() {
+        Task {
+            do {
+                guard let repo = appData.repo else { return }
+                try await repo.deleteResponse(responseId: item.id, userId: appData.viewingAsUser)
+                
+                // Refresh the current feed
+                await repo.loadFeed(filter: currentFilter, userID: appData.viewingAsUser, limit: 30)
+                
+                print("Post deleted successfully")
+            } catch {
+                print("Failed to delete post: \(error)")
+            }
+        }
+    }
+}
 
 enum FeedFilter: CaseIterable {
     case friends, all, myEntries
@@ -516,7 +554,7 @@ struct AudioPlayerView: View {
                 player?.play()
                 isPlaying = true
             } catch {
-                print("Audio playbook failed:", error)
+                print("Audio playback failed:", error)
             }
         }
     }
@@ -791,12 +829,3 @@ struct CommentRow: View {
         }
     }
 }
-
-
-
-
-
-
-
-
-
