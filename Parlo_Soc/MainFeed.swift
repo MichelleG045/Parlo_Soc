@@ -445,11 +445,13 @@ struct FeedCard: View {
             liked = item.likes.contains(appData.viewingAsUser)
             bookmarked = appData.savedResponses[appData.viewingAsUser]?
                 .contains(where: { $0.id == item.id }) ?? false
-            }
+        }
         .onChange(of: appData.viewingAsUser) { _ in
+            // Update liked state when switching users
+            liked = item.likes.contains(appData.viewingAsUser)
             bookmarked = appData.savedResponses[appData.viewingAsUser]?
                 .contains(where: { $0.id == item.id }) ?? false
-            }
+        }
         }
     }
 
