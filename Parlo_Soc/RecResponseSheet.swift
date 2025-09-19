@@ -5,6 +5,7 @@
 //  Created by Max Eisenberg on 9/6/25.
 //
 
+
 import SwiftUI
 import AVFoundation
 import Speech
@@ -16,7 +17,7 @@ struct RecResponseSheet: View {
     
     let promptTitle: String
     
-    // Pass data directly instead of using singleton
+ 
     @Binding var responseData: ResponseData
     
     @State var recording = false
@@ -35,7 +36,7 @@ struct RecResponseSheet: View {
                 .font(.system(size: 18, weight: .bold, design: .monospaced))
                 .foregroundStyle(.txt)
             
-            // waveform
+
             RoundedRectangle(cornerRadius: 15)
                 .fill(.bgLight.opacity(0.6))
                 .frame(height: 110)
@@ -57,7 +58,7 @@ struct RecResponseSheet: View {
                     }
                 )
             
-            // Recording status
+      
             if recording {
                 HStack {
                     Circle()
@@ -72,7 +73,7 @@ struct RecResponseSheet: View {
                 }
             }
             
-            // Show transcript if available
+          
             if !responseTranscript.isEmpty {
                 ScrollView {
                     Text(responseTranscript)
@@ -87,7 +88,7 @@ struct RecResponseSheet: View {
             
             Spacer()
             
-            // Permission status
+   
             if !permissionGranted {
                 VStack(spacing: 8) {
                     Text("Microphone permission required")
@@ -105,7 +106,7 @@ struct RecResponseSheet: View {
                 }
             }
             
-            // CTA button
+
             Button {
                 if !recording {
                     startRecording()
@@ -152,7 +153,7 @@ struct RecResponseSheet: View {
         return String(format: "%d:%02d", minutes, remainingSeconds)
     }
     
-    // MARK: - Permissions
+ 
     
     func requestMicrophonePermission() {
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
@@ -172,7 +173,7 @@ struct RecResponseSheet: View {
         }
     }
     
-    // MARK: - Recording
+
     
     func startRecording() {
         guard permissionGranted else {
@@ -181,17 +182,15 @@ struct RecResponseSheet: View {
         }
         
         print("Starting recording...")
-        
-        // Reset state
+
         responseTranscript = ""
         recordingDuration = 0
-        
-        // Start recording timer
+  
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             recordingDuration += 1
         }
         
-        // Start audio recording
+      
         audioFile = audioManager.startRecordingToFile()
         audioManager.start(transcribe: speechPermissionGranted, monitor: true)
         
@@ -202,27 +201,26 @@ struct RecResponseSheet: View {
     func stopRecording() {
         print("Stopping recording...")
         
-        // Stop timer
+  
         recordingTimer?.invalidate()
         recordingTimer = nil
         
-        // Stop audio
+  
         audioManager.stop()
         audioFile = audioManager.stopRecordingToFile()
         
         recording = false
         UIApplication.shared.isIdleTimerDisabled = false
         
-        // Get final transcript
+
         responseTranscript = audioManager.transcript
         
-        // Save data directly to binding instead of singleton
+   
         responseData.transcript = responseTranscript
         responseData.audioFile = audioFile
         
         print("Recording stopped. Duration: \(recordingDuration)s, Transcript: '\(responseTranscript)'")
-        
-        // Auto-advance if we have content
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if !responseTranscript.isEmpty || audioFile != nil {
                 step = .config
@@ -231,7 +229,7 @@ struct RecResponseSheet: View {
     }
 }
 
-// NEW: Data structure to pass between steps
+
 struct ResponseData {
     var transcript: String = ""
     var audioFile: URL? = nil

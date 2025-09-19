@@ -14,7 +14,7 @@ struct ShareConfigs: View {
 
     let currentFilter: FeedFilter
     let onResponsePosted: () -> Void
-    let responseData: ResponseData // Receive data instead of using singleton
+    let responseData: ResponseData
     
     @State private var shareWithFriends: Bool = true
     @State private var makePublic: Bool = false
@@ -37,7 +37,7 @@ struct ShareConfigs: View {
                 row("globe.americas.fill", "Everyone on Parlo", $makePublic)
                 row("mic.fill", "Include audio recording", $includeAudio)
             }
-            // HIERARCHICAL TOGGLE LOGIC
+
             .onChange(of: makePublic) { _, newValue in
                 if newValue {
                     shareWithFriends = true
@@ -53,7 +53,6 @@ struct ShareConfigs: View {
             
             Spacer()
             
-            // Visibility explanation
             VStack(alignment: .leading, spacing: 4) {
                 if makePublic {
                     Text("Everyone on Parlo will see this (including friends)")
@@ -71,9 +70,9 @@ struct ShareConfigs: View {
             }
             .padding(.horizontal)
             
-            // action buttons
+
             VStack(spacing: 20) {
-                // submit button
+          
                 Button {
                     createPost()
                 } label: {
@@ -90,7 +89,7 @@ struct ShareConfigs: View {
                 }
                 .disabled(!shareWithFriends)
                 
-                // delete/back
+      
                 Button {
                     step = .record
                 } label: {
@@ -112,15 +111,14 @@ struct ShareConfigs: View {
         .background(.bgDark)
     }
     
-    // MARK: - Create Post Function - Use passed data
+
     private func createPost() {
         print("Creating post from \(currentFilter.title) tab...")
         
-        // Get transcript from passed data instead of singleton
         let transcript = responseData.transcript
         print("   Transcript: '\(transcript)'")
         
-        // Build media array
+     
         var media: [SocialResponse] = []
         
         if !transcript.isEmpty {
@@ -135,7 +133,7 @@ struct ShareConfigs: View {
             print("   Audio not included")
         }
         
-        // Map viewingAsUser → display name & handle
+
         let activeID = appData.viewingAsUser
         let displayName = appData.availableUsers.first(where: { $0.0 == activeID })?.1 ?? "Unknown"
         let displayHandle: String
@@ -152,7 +150,7 @@ struct ShareConfigs: View {
             socialID: displayHandle
         )
 
-        // DETERMINE VISIBILITY HIERARCHICALLY
+     
         let finalVisibility: Visibility
         if makePublic {
             finalVisibility = .everyone
@@ -175,12 +173,10 @@ struct ShareConfigs: View {
                     return
                 }
                 
-                // Mark prompt as completed for this user
                 let promptKey = "\(appData.viewingAsUser)_completed_today-prompt"
                 UserDefaults.standard.set(true, forKey: promptKey)
                 print("UNBLURRED: Prompt marked as completed for \(appData.viewingAsUser)")
                 
-                // Create the post with PROPER VISIBILITY
                 try await repo.createResponse(
                     promptId: "today-prompt",
                     promptText: "what are you happy about",
@@ -234,3 +230,4 @@ struct ShareConfigs: View {
         .opacity((!shareWithFriends && icon == "globe.americas.fill") ? 0.5 : 1.0)
     }
 }
+

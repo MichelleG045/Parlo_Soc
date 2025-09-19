@@ -11,15 +11,14 @@ import SwiftUI
 class AppData: ObservableObject {
     
     
-    // core data
+
     @Published var signedIn = false
-    @Published var userID = "current-user"  // Set default instead of empty string
-    @Published var viewingAsUser = "current-user"  // Who we're viewing the feed as
-    @Published var name: String = "You"     // Set default name
+    @Published var userID = "current-user"
+    @Published var viewingAsUser = "current-user"
+    @Published var name: String = "You"
     @Published var phone: String = ""
     @Published var pfp: UIImage? = nil
     
-    // app functions
     @Published var selectedTab = 0
     @Published var firstEntryRecorded = false
     @Published var hasSeenOnboarding = false
@@ -34,12 +33,10 @@ class AppData: ObservableObject {
     @Published var lastUpdatedCompanionInsight: Date? = nil
     
     
-    // goals
     @Published var weeklyGoal = 3
     @Published var monthlyGoal = 20
     
     
-    // spotify stuff
     @Published var spotifyConnected = false
     @Published var listeningContext: String? = nil
     @Published var weeklyPlaylist: [SongInfo] = []
@@ -47,49 +44,40 @@ class AppData: ObservableObject {
     @Published var lastPlaylistRefresh: Date?
     @Published var playlistRefreshInProgress: Bool = false
 
-    // journal stuff
     @Published var journalEntries: [Date: [JournalEntry]] = [:]
     @Published var wordDict: [String : Int] = [:]
     @Published var journalingPrompts: [String] = []
         
-    // settings
     @Published var useReason: Int = 0
     @Published var selectedLanguage: String = Locale.current.identifier
     
-    // notifications
     @Published var notifPrompted: Bool = false
     @Published var notificationsEnabled: Bool = false
     @Published var notificationTask: [String: Any] = [:]
     @Published var notifyTime: String? = nil
     
-    // ai insights
     @Published var weeklyInsights: WeekInsight? = nil
     @Published var monthlyInsights: MonthInsight? = nil
     
-    // badges
     @Published var availableBadges: [Badge] = []
     @Published var userBadges: [String] = []
     
     
-    // social stuff
     @Published var completedPrompts: [String] = []
     @Published var cachedPFP: [String: UIImage] = [:]
     @Published var socialRepo: SocialRepository?
-    @Published var socialID: String = "@you"  // Set default
+    @Published var socialID: String = "@you"
     @Published var friends: [NetworkFriend] = []
     @Published var cachedFriendPFP: [String : UIImage] = [:]
     @Published var cachedNetworkInsights: [String : Date] = [:]
     
     @Published var defaultAudience = "friends"
     
-    // Main social feed repository
     @Published var repo: MainSocialFeedRepository?
     
-    // ✅ NEW: Saved responses
     @Published var savedResponses: [String: [FeedItem]] = [:]
 
-    
-    // Available test users for switching perspectives
+
     let availableUsers = [
         ("current-user", "You"),
         ("user-sarah", "Sarah Chen"),
@@ -211,4 +199,3 @@ let HardcodedPrompts: [String] = [
     "How did you connect?",
     "What's been helping lately?"
 ]
-

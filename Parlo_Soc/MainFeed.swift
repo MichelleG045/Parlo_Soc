@@ -37,14 +37,13 @@ struct MainSocialFeed: View {
                     todayPromptCard
                         .padding(.bottom)
                     
-                    // Feed display - enabled with mock data
                     LazyVStack(spacing: 16) {
                         ForEach(repo.feed) { item in
                             FeedCard(
                                 item: item,
                                 currentPromptId: todaysPrompt.id,
                                 hasAnsweredCurrentPrompt: userHasAnsweredPrompt(),
-                                currentFilter: filter  // PASS CURRENT FILTER
+                                currentFilter: filter
                             )
                             .environmentObject(appData)
                         }
@@ -69,15 +68,15 @@ struct MainSocialFeed: View {
             Task { await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30) }
         }
         .sheet(isPresented: $showResponseSheet) {
-            // PASS CURRENT FILTER AND REFRESH CALLBACK
+          
             ResponseManager(
                 promptTitle: todaysPrompt.prompt,
                 currentFilter: filter,
                 onResponsePosted: {
-                    // Refresh the current filter after posting
+                  
                     Task {
                         await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30)
-                        print("🔄 Refreshed \(filter.title) tab after posting")
+                        print("Refreshed \(filter.title) tab after posting")
                     }
                 }
             )
@@ -89,7 +88,6 @@ struct MainSocialFeed: View {
         }
     }
     
-    // Header with user switcher
     private var headerWithUserSwitcher: some View {
         HStack {
             Text("Viewing as: \(getCurrentUserName())")
@@ -122,12 +120,10 @@ struct MainSocialFeed: View {
     }
     
     private func userHasAnsweredPrompt() -> Bool {
-        // Check if the current viewing user has answered the prompt
         let promptKey = "\(appData.viewingAsUser)_completed_\(todaysPrompt.id)"
         return UserDefaults.standard.bool(forKey: promptKey)
     }
     
-    // filter bar
     private var filterBar: some View {
         HStack(spacing: 8) {
             ForEach(FeedFilter.allCases, id: \.self) { f in
@@ -151,13 +147,11 @@ struct MainSocialFeed: View {
         }
     }
     
-    // daily prompt card
     @ViewBuilder
     private var todayPromptCard: some View {
         let hasAnswered = userHasAnsweredPrompt()
         
         VStack(alignment: .leading, spacing: 20) {
-            // header
             HStack {
                 Text("Today's Question")
                 Spacer()
@@ -177,7 +171,6 @@ struct MainSocialFeed: View {
                 .foregroundStyle(.txt)
                 .multilineTextAlignment(.leading)
             
-            // Show answer button for all users
             Button {
                 print("Share Response button tapped from \(filter.title) tab by \(getCurrentUserName())")
                 showResponseSheet = true
@@ -203,7 +196,6 @@ struct MainSocialFeed: View {
     }
 }
 
-// MARK: - User Switcher Sheet
 struct UserSwitcherSheet: View {
     @EnvironmentObject var appData: AppData
     @Environment(\.dismiss) private var dismiss
@@ -279,23 +271,21 @@ struct FeedCard: View {
     let item: FeedItem
     let currentPromptId: String
     let hasAnsweredCurrentPrompt: Bool
-    let currentFilter: FeedFilter  // ADD CURRENT FILTER
+    let currentFilter: FeedFilter
     
     @State private var bookmarked = false
     @State private var showCommentsSheet = false
-    @State private var showDeleteAlert = false  // NEW - DELETE ALERT
+    @State private var showDeleteAlert = false
     @State var loadingPFP = false
     @State var userPFP: UIImage? = nil
     @State var liked = false
     
-    // Check if current user owns this post
     private var isOwnPost: Bool {
         item.author.uid == appData.viewingAsUser
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
-            // user info with delete button
             HStack(spacing: 10) {
                 Group {
                     if loadingPFP {
@@ -343,7 +333,6 @@ struct FeedCard: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 2) {
-                    // DELETE BUTTON - only show for own posts
                     if isOwnPost {
                         Button {
                             showDeleteAlert = true
@@ -361,8 +350,7 @@ struct FeedCard: View {
                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.gray)
             }
-            
-            // response content with blur logic
+         
             ZStack {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(item.promptText)
@@ -386,7 +374,6 @@ struct FeedCard: View {
                         }
                     }
                     
-                    // reactions
                     HStack(spacing: 20) {
                         Button {
                             liked.toggle()
@@ -441,7 +428,6 @@ struct FeedCard: View {
                 .blur(radius: !hasAnsweredCurrentPrompt ? 3 : 0)
                 .opacity(!hasAnsweredCurrentPrompt ? 0.80 : 1)
                 
-                // lock overlay - only show if user hasn't answered
                 if !hasAnsweredCurrentPrompt {
                     VStack(spacing: 15) {
                         Image(systemName: "lock.fill")
@@ -459,12 +445,10 @@ struct FeedCard: View {
                 .contains(where: { $0.id == item.id }) ?? false
         }
         .onChange(of: appData.viewingAsUser) { _ in
-            // Update liked state when switching users
             liked = item.likes.contains(appData.viewingAsUser)
             bookmarked = appData.savedResponses[appData.viewingAsUser]?
                 .contains(where: { $0.id == item.id }) ?? false
         }
-        // DELETE CONFIRMATION ALERT
         .alert("Delete Response", isPresented: $showDeleteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
@@ -475,14 +459,12 @@ struct FeedCard: View {
         }
     }
     
-    // MARK: - Delete Post Function
     private func deletePost() {
         Task {
             do {
                 guard let repo = appData.repo else { return }
                 try await repo.deleteResponse(responseId: item.id, userId: appData.viewingAsUser)
                 
-                // Refresh the current feed
                 await repo.loadFeed(filter: currentFilter, userID: appData.viewingAsUser, limit: 30)
                 
                 print("Post deleted successfully")
@@ -518,7 +500,6 @@ private extension Date {
     }
 }
 
-// MARK: - Simple Audio Player View
 struct AudioPlayerView: View {
     let url: URL
     @State private var player: AVAudioPlayer?
@@ -560,7 +541,6 @@ struct AudioPlayerView: View {
     }
 }
 
-// MARK: - Comments Sheet
 struct CommentsSheet: View {
     @EnvironmentObject var appData: AppData
     let feedItem: FeedItem
@@ -573,7 +553,6 @@ struct CommentsSheet: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header
                 HStack {
                     Spacer()
                     
@@ -593,7 +572,7 @@ struct CommentsSheet: View {
                 Divider()
                     .background(.gray.opacity(0.3))
                 
-                // Original post preview
+     
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: "person.circle.fill")
@@ -624,7 +603,7 @@ struct CommentsSheet: View {
                 Divider()
                     .background(.gray.opacity(0.3))
                 
-                // Comments list
+           
                 if comments.isEmpty {
                     VStack(spacing: 16) {
                         Spacer()
@@ -656,18 +635,18 @@ struct CommentsSheet: View {
                     }
                 }
                 
-                // Comment input
+       
                 VStack(spacing: 0) {
                     Divider()
                         .background(.gray.opacity(0.3))
                     
                     HStack(spacing: 12) {
-                        // User avatar
+               
                         Image(systemName: "person.circle.fill")
                             .font(.system(size: 32))
                             .foregroundStyle(.gray)
                         
-                        // Text input
+             
                         TextField("Add a comment...", text: $newCommentText, axis: .vertical)
                             .textFieldStyle(.plain)
                             .font(.system(size: 14, weight: .regular, design: .monospaced))
@@ -678,7 +657,7 @@ struct CommentsSheet: View {
                             .background(.bgLight.opacity(0.6))
                             .cornerRadius(20)
                         
-                        // Send button
+               
                         Button {
                             submitComment()
                         } label: {
@@ -762,7 +741,7 @@ struct CommentRow: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Comment header
+        
             HStack(spacing: 8) {
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 24))
@@ -785,13 +764,13 @@ struct CommentRow: View {
                     .foregroundStyle(.gray)
             }
             
-            // Comment text
+
             Text(comment.text)
                 .font(.system(size: 14, weight: .regular, design: .monospaced))
                 .foregroundStyle(.txt)
                 .fixedSize(horizontal: false, vertical: true)
             
-            // Comment actions
+       
             HStack(spacing: 16) {
                 Button {
                     Task {

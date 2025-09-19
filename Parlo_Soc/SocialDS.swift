@@ -9,7 +9,7 @@ import Foundation
 import SwiftUI
 import CryptoKit
 
-// MARK: - Users & Friends
+
 
 public struct ParloUser: Identifiable, Hashable, Codable {
     public var id: String
@@ -34,7 +34,7 @@ public struct FriendRequest: Identifiable, Hashable, Codable {
     public static func docId(_ from: String, _ to: String) -> String { "\(from)_\(to)" }
 }
 
-// MARK: - Notifications
+
 
 struct SocialNotification: Identifiable, Hashable, Codable {
     let id: String
@@ -52,7 +52,7 @@ enum SocialNotificationKind: String, Codable, Hashable {
     case comment
 }
 
-// MARK: - Prompts & Feed
+
 
 struct SocialPrompt {
     let id: String
@@ -87,7 +87,6 @@ enum Visibility: String, Codable {
     case friends
 }
 
-// MARK: - Response Media
 
 struct SocialResponse: Codable, Hashable, Identifiable {
     var id: String = UUID().uuidString
@@ -104,7 +103,7 @@ struct SocialResponse: Codable, Hashable, Identifiable {
     }
 }
 
-// MARK: - Comments
+
 
 struct SocialComment: Codable, Identifiable, Hashable {
     var id: String
@@ -114,7 +113,7 @@ struct SocialComment: Codable, Identifiable, Hashable {
     var likeCount: Int
 }
 
-// MARK: - Friends
+
 
 struct NetworkFriend: Identifiable, Hashable {
     let id: UUID
@@ -123,7 +122,7 @@ struct NetworkFriend: Identifiable, Hashable {
     let pfp: UIImage?
 }
 
-// MARK: - Insights
+
 
 struct NetworkInsights: Codable {
     let summary: String
@@ -186,7 +185,7 @@ struct Outlier: Codable, Identifiable {
     let evidence: String
 }
 
-// MARK: - Social ID Helper
+
 
 let base62chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 let base62 = Array(base62chars)

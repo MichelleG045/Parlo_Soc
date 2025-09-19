@@ -1,8 +1,10 @@
 //
-//  FeedFunctions.swift (Mock Only)
+//  FeedFunctions.swift (Refactor for Interns)
 //  echo / Parlo_Social
 //
 //  Created by Max Eisenberg on 9/15/25.
+//  NOTE: This file intentionally contains empty function bodies.
+//  Your job is to implement the steps outlined in the comments.
 //
 
 import Foundation
@@ -11,16 +13,12 @@ import UIKit
 @MainActor
 final class MainSocialFeedRepository: ObservableObject {
     
-    /// All posts (master list - never modified after creation)
     private var allPosts: [FeedItem] = []
     
-    /// Filtered posts for display
     @Published var feed: [FeedItem] = []
     
-    // Define friends vs strangers for filtering logic
     private let baseFriendUIDs = ["user-sarah", "user-alex", "user-jordan"]
     
-    // MARK: - Create Response
     func createResponse(
         promptId: String,
         promptText: String,
@@ -37,7 +35,6 @@ final class MainSocialFeedRepository: ObservableObject {
             print("   Media \(index): \(item.kind) - \(item.text ?? item.url?.lastPathComponent ?? "nil")")
         }
         
-        // Create new post
         let item = FeedItem(
             id: UUID().uuidString,
             author: author,
@@ -53,18 +50,15 @@ final class MainSocialFeedRepository: ObservableObject {
             likes: []
         )
         
-        // Add to master list ONLY (newest first)
         allPosts.insert(item, at: 0)
         
         print("Post added to master list. Total posts: \(allPosts.count)")
         print("Current feed will be updated by filter logic")
     }
     
-    // MARK: - Delete Response
     func deleteResponse(responseId: String, userId: String) async throws {
         print("Attempting to delete response: \(responseId) by user: \(userId)")
         
-        // Find the post in master list
         guard let postIndex = allPosts.firstIndex(where: { $0.id == responseId }) else {
             print("Post not found for deletion")
             throw NSError(domain: "PostNotFound", code: 404, userInfo: nil)
@@ -72,34 +66,28 @@ final class MainSocialFeedRepository: ObservableObject {
         
         let post = allPosts[postIndex]
         
-        // Check if user owns the post
         guard post.author.uid == userId else {
             print("User \(userId) cannot delete post by \(post.author.uid)")
             throw NSError(domain: "Unauthorized", code: 403, userInfo: nil)
         }
         
-        // Remove from master list
         allPosts.remove(at: postIndex)
         print("Deleted post '\(responseId)' by \(post.author.name)")
         print("Remaining posts: \(allPosts.count)")
         
-        // Remove from current feed if it exists there
         if let feedIndex = feed.firstIndex(where: { $0.id == responseId }) {
             feed.remove(at: feedIndex)
             print("Removed from current feed display")
         }
     }
     
-    // MARK: - Load Feed with CORRECTED VISIBILITY Filtering
     func loadFeed(filter: FeedFilter, userID: String, limit: Int = 30) async {
         
         print("Loading feed with filter: \(filter)")
         print("Current userID: '\(userID)'")
         
-        // Create effective friends list based on viewing perspective
         var effectiveFriendUIDs = baseFriendUIDs
         if userID != "current-user" {
-            // When viewing as someone else, treat current-user as their friend
             effectiveFriendUIDs.append("current-user")
             print("Added current-user to friends list for \(userID)'s perspective")
         }
@@ -113,12 +101,10 @@ final class MainSocialFeedRepository: ObservableObject {
         
         switch filter {
         case .all:
-            // Show ONLY PUBLIC posts (.everyone), exclude user's own
             feed = allPosts.filter { post in
                 let isNotUser = post.author.uid != userID
                 let isPublicPost = (post.visibility == .everyone)
                 
-                // Show ONLY if: (not user's post) AND (post is public)
                 let showInAll = isNotUser && isPublicPost
                 print("   ALL: \(post.author.name) - visibility: \(post.visibility), isPublic: \(isPublicPost), show: \(showInAll)")
                 return showInAll
@@ -126,14 +112,13 @@ final class MainSocialFeedRepository: ObservableObject {
             print("Showing ALL posts (ONLY public posts, excluding user): \(feed.count)")
             
         case .friends:
-            // Show friend posts (any visibility) + friends-only posts from anyone, exclude user's own
             feed = allPosts.filter { post in
                 let isNotUser = post.author.uid != userID
                 let isFriend = effectiveFriendUIDs.contains(post.author.uid)
                 let isFriendsOnlyPost = (post.visibility == .friends)
                 let isPublicPost = (post.visibility == .everyone)
                 
-                // Show if: (friend's post of ANY visibility) OR (friends-only post from anyone)
+         
                 let showInFriends = isNotUser && (isFriend || isFriendsOnlyPost)
                 print("   FRIENDS: \(post.author.name) - visibility: \(post.visibility), isFriend: \(isFriend), isFriendsOnly: \(isFriendsOnlyPost), isPublic: \(isPublicPost), show: \(showInFriends)")
                 return showInFriends
@@ -141,7 +126,6 @@ final class MainSocialFeedRepository: ObservableObject {
             print("Showing FRIENDS posts (all friend posts + friends-only posts, excluding user): \(feed.count)")
             
         case .myEntries:
-            // Show only user's posts
             feed = allPosts.filter { post in
                 let isUser = post.author.uid == userID
                 print("   MY ENTRIES: \(post.author.name) - isUser: \(isUser)")
@@ -151,12 +135,10 @@ final class MainSocialFeedRepository: ObservableObject {
         }
     }
     
-    // MARK: - Toggle Like
     func toggleLike(responseId: String, userId: String) async {
         
         print("Toggling post like - responseId: \(responseId), userId: \(userId)")
         
-        // Update in master list
         if let idx = allPosts.firstIndex(where: { $0.id == responseId }) {
             var item = allPosts[idx]
             
@@ -174,7 +156,6 @@ final class MainSocialFeedRepository: ObservableObject {
             allPosts[idx] = item
         }
         
-        // Update in display list
         if let idx = feed.firstIndex(where: { $0.id == responseId }) {
             var item = feed[idx]
             if item.likes.contains(userId) {
@@ -188,7 +169,6 @@ final class MainSocialFeedRepository: ObservableObject {
         }
     }
     
-    // MARK: - Add Comment
     func addComment(responseId: String, author: SocialResponseAuthor, text: String) async {
         
         let comment = SocialComment(
@@ -199,7 +179,6 @@ final class MainSocialFeedRepository: ObservableObject {
             likeCount: 0
         )
         
-        // Update in master list
         if let idx = allPosts.firstIndex(where: { $0.id == responseId }) {
             var item = allPosts[idx]
             item.comments.append(comment)
@@ -207,7 +186,6 @@ final class MainSocialFeedRepository: ObservableObject {
             allPosts[idx] = item
         }
         
-        // Update in display list
         if let idx = feed.firstIndex(where: { $0.id == responseId }) {
             var item = feed[idx]
             item.comments.append(comment)
@@ -216,25 +194,21 @@ final class MainSocialFeedRepository: ObservableObject {
         }
     }
     
-    // MARK: - Toggle Comment Like
     func toggleCommentLike(commentId: String, userId: String) async {
         let likeKey = "comment_like_\(commentId)_\(userId)"
         let wasLiked = UserDefaults.standard.bool(forKey: likeKey)
         
         print("Toggling comment like - commentId: \(commentId), wasLiked: \(wasLiked)")
         
-        // Update in master list
         for (feedIndex, var feedItem) in allPosts.enumerated() {
             if let commentIndex = feedItem.comments.firstIndex(where: { $0.id == commentId }) {
                 var comment = feedItem.comments[commentIndex]
                 
                 if wasLiked {
-                    // Was liked, now unlike
                     comment.likeCount = max(0, comment.likeCount - 1)
                     UserDefaults.standard.set(false, forKey: likeKey)
                     print("   Unliked comment: \(comment.likeCount)")
                 } else {
-                    // Was not liked, now like
                     comment.likeCount += 1
                     UserDefaults.standard.set(true, forKey: likeKey)
                     print("   Liked comment: \(comment.likeCount)")
@@ -245,17 +219,13 @@ final class MainSocialFeedRepository: ObservableObject {
                 break
             }
         }
-        
-        // Update in display list
         for (feedIndex, var feedItem) in feed.enumerated() {
             if let commentIndex = feedItem.comments.firstIndex(where: { $0.id == commentId }) {
                 var comment = feedItem.comments[commentIndex]
                 
                 if wasLiked {
-                    // Was liked, now unlike
                     comment.likeCount = max(0, comment.likeCount - 1)
                 } else {
-                    // Was not liked, now like
                     comment.likeCount += 1
                 }
                 
@@ -265,18 +235,14 @@ final class MainSocialFeedRepository: ObservableObject {
             }
         }
     }
-    
-    // MARK: - Check if user liked comment
     func hasUserLikedComment(commentId: String, userId: String) -> Bool {
         let likeKey = "comment_like_\(commentId)_\(userId)"
         let isLiked = UserDefaults.standard.bool(forKey: likeKey)
         return isLiked
     }
     
-    // MARK: - Fetch Comments
     func fetchComments(responseId: String, completion: @escaping ([SocialComment]) -> Void) {
         
-        // Look in both master and display lists
         if let item = allPosts.first(where: { $0.id == responseId }) {
             completion(item.comments)
         } else if let item = feed.first(where: { $0.id == responseId }) {
@@ -286,9 +252,7 @@ final class MainSocialFeedRepository: ObservableObject {
         }
     }
     
-    // MARK: - Mock Data - SARAH HAS NO POSTS
     func createMockData() {
-        // Clear all previous comment like states to ensure fresh start
         let defaults = UserDefaults.standard
         for key in defaults.dictionaryRepresentation().keys {
             if key.hasPrefix("comment_like_") {
@@ -297,7 +261,6 @@ final class MainSocialFeedRepository: ObservableObject {
             }
         }
         
-        // Clear any existing prompt completion states for fresh testing
         for key in defaults.dictionaryRepresentation().keys {
             if key.contains("_completed_") {
                 defaults.removeObject(forKey: key)
@@ -305,7 +268,6 @@ final class MainSocialFeedRepository: ObservableObject {
             }
         }
         
-        // Mark completed prompts - SARAH HAS NOT ANSWERED
         let answeredUsers = ["user-alex", "user-jordan", "stranger-emily", "stranger-mark", "stranger-david"]
         for userId in answeredUsers {
             let promptKey = "\(userId)_completed_today-prompt"
@@ -313,11 +275,9 @@ final class MainSocialFeedRepository: ObservableObject {
             print("Marked prompt as completed for: \(userId)")
         }
         
-        // Sarah (user-sarah) has NOT answered the prompt - posts will be blurred for her
         print("Sarah Chen has NOT answered the prompt - she will see blurred content")
         
         let mockResponses = [
-            // NO SARAH POST - SHE HASN'T ANSWERED YET
             
             FeedItem(
                 id: "friend-2",
@@ -327,7 +287,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 media: [
                     SocialResponse(kind: .text, text: "Got accepted into my dream graduate program! Still can't believe it's real. All those late study nights finally paid off.")
                 ],
-                visibility: .everyone, // PUBLIC POST - should appear in BOTH "All" and "Friends" tabs
+                visibility: .everyone,
                 likeCount: 4,
                 commentCount: 2,
                 comments: [
@@ -348,7 +308,7 @@ final class MainSocialFeedRepository: ObservableObject {
                     SocialResponse(kind: .text, text: "Just had the most amazing conversation with my grandmother about her childhood stories."),
                     SocialResponse(kind: .audio, text: nil, url: URL(string: "file://mock-audio-jordan.m4a"))
                 ],
-                visibility: .friends, // FRIENDS ONLY - should NOT appear in "All" tab
+                visibility: .friends,
                 likeCount: 2,
                 commentCount: 1,
                 comments: [
@@ -359,7 +319,6 @@ final class MainSocialFeedRepository: ObservableObject {
                 likes: ["user-emma"]
             ),
             
-            // STRANGERS POSTS (All public)
             FeedItem(
                 id: "stranger-1",
                 author: SocialResponseAuthor(name: "Emily Watson", uid: "stranger-emily", socialID: "@emily_w"),
@@ -368,7 +327,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 media: [
                     SocialResponse(kind: .text, text: "Just started my new job today! Excited for this new chapter and all the opportunities ahead.")
                 ],
-                visibility: .everyone, // PUBLIC - should appear in "All" tab
+                visibility: .everyone,
                 likeCount: 15,
                 commentCount: 1,
                 comments: [
@@ -387,7 +346,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 media: [
                     SocialResponse(kind: .text, text: "Finally finished reading my first novel in years! There's something magical about getting lost in a good story.")
                 ],
-                visibility: .everyone, // PUBLIC - should appear in "All" tab
+                visibility: .everyone,
                 likeCount: 8,
                 commentCount: 0,
                 comments: [],
@@ -396,7 +355,6 @@ final class MainSocialFeedRepository: ObservableObject {
                 likes: ["random-4", "random-5"]
             ),
             
-            // FRIENDS-ONLY POST from stranger
             FeedItem(
                 id: "stranger-3",
                 author: SocialResponseAuthor(name: "David Chen", uid: "stranger-david", socialID: "@david_c"),
@@ -405,7 +363,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 media: [
                     SocialResponse(kind: .text, text: "Having a tough day but trying to stay positive. My therapy session really helped me process some difficult emotions.")
                 ],
-                visibility: .friends, // FRIENDS-ONLY - should appear in "Friends" tab but NOT "All" tab
+                visibility: .friends,
                 likeCount: 5,
                 commentCount: 1,
                 comments: [
@@ -417,9 +375,8 @@ final class MainSocialFeedRepository: ObservableObject {
             )
         ]
         
-        // Set both master and display lists
         allPosts = mockResponses
-        feed = mockResponses // Start by showing all
+        feed = mockResponses
         print("Mock data created: \(allPosts.count) posts loaded")
         print("UPDATED MOCK DATA - SARAH HAS NO POSTS:")
         print("  - Sarah Chen: NO POSTS (hasn't answered prompt)")
@@ -433,8 +390,7 @@ final class MainSocialFeedRepository: ObservableObject {
     }
 }
 
-/// Mocked PFP fetch – Firestore/Storage disabled for now.
+
 func fetchUserPFP(userID: String) async -> UIImage? {
-    // Mock: always return nil for now
     return nil
 }

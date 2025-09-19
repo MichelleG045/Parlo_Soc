@@ -12,7 +12,7 @@ enum SocialView {
 }
 
 struct SocialTab: View {
-    // ✅ Use mock SocialRepository directly instead of @Root
+
     private let repo = SocialRepository()
     @StateObject private var requestsVM: RequestsVM
 
@@ -28,7 +28,7 @@ struct SocialTab: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                // Header - switch between feed and network
+             
                 HStack(alignment: .center) {
                     Button {
                         view = (view == .feed ? .network : .feed)
@@ -43,7 +43,6 @@ struct SocialTab: View {
 
                 Spacer()
 
-                // Notifications
                 HStack(spacing: 20) {
                     Button {
                         showRequests = true
@@ -60,16 +59,16 @@ struct SocialTab: View {
                     }
                 }
                 .sheet(isPresented: $showRequests) {
-                    RequestsView() // ✅ placeholder from SocialStubs
+                    RequestsView()
                 }
 
                 Spacer()
 
-                // Main content
+        
                 if view == .feed {
-                    MainSocialFeed() // ✅ your feed screen
+                    MainSocialFeed()
                 } else {
-                    NetworkGraph() // ✅ placeholder from SocialStubs
+                    NetworkGraph()
                 }
             }
         }

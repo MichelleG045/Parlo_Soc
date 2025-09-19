@@ -2,19 +2,19 @@
 //  Parlo_SocApp.swift
 //  Parlo_Soc
 //
-//  Created by Michelle Gurovith on 9/17/25.
+//  Created by Michelle Gurovith on 9/16/25.
 //
 
 import SwiftUI
 
 @main
 struct Parlo_SocApp: App {
-    @StateObject private var appData = AppData()   // ✅ Global app state
+    @StateObject private var appData = AppData()
     
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(appData)  // ✅ inject into root view
+                .environmentObject(appData)
         }
     }
 }

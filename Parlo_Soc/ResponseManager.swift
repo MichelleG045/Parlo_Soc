@@ -1,5 +1,5 @@
 //
-//  ResponseManager.swift
+//  PromptResponseSheet.swift
 //  echo
 //
 //  Created by Max Eisenberg on 9/6/25.
@@ -14,7 +14,7 @@ struct ResponseManager: View {
     let onResponsePosted: () -> Void
 
     @State var step: ResponseFlowStep = .record
-    @State private var responseData = ResponseData() // Local data storage
+    @State private var responseData = ResponseData()
     @EnvironmentObject var appData: AppData
 
     var body: some View {
@@ -30,7 +30,7 @@ struct ResponseManager: View {
             }
             .padding(.bottom)
             
-            // step indicator
+     
             HStack(alignment: .top) {
                 stepCircle(number: 1, title: "Record", isActive: step == .record)
                     .onTapGesture {
@@ -48,13 +48,12 @@ struct ResponseManager: View {
             }
             .padding(.horizontal, 50)
             
-            // Step content
+     
             stepContent
         }
         .background(Color(.bgDark).ignoresSafeArea())
     }
-    
-    // MARK: - Step content
+
     @ViewBuilder
     private var stepContent: some View {
         switch step {
@@ -62,19 +61,17 @@ struct ResponseManager: View {
             RecResponseSheet(
                 step: $step,
                 promptTitle: promptTitle,
-                responseData: $responseData // Pass data binding
+                responseData: $responseData
             )
         case .config:
             ShareConfigs(
                 step: $step,
                 currentFilter: currentFilter,
                 onResponsePosted: onResponsePosted,
-                responseData: responseData // Pass data
-            )
+                responseData: responseData)
         }
     }
     
-    // MARK: - Step Circle UI
     private func stepCircle(number: Int, title: String, isActive: Bool) -> some View {
         VStack(spacing: 10) {
             ZStack {
