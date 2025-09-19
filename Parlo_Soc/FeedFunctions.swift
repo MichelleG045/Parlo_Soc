@@ -248,13 +248,14 @@ final class MainSocialFeedRepository: ObservableObject {
             }
         }
         
-        // Simulate realistic prompt completion states
+        // FIXED: Simulate realistic prompt completion states
+        // All users who have posts in the feed should be marked as having completed the prompt
         // You (current-user) - will be marked as answered when you create a post
-        // Sarah - has answered (unlocked posts)
-        // Alex - has NOT answered (posts still blurred)
-        // Jordan - has answered (unlocked posts)
+        // Sarah - has answered (unlocked posts) + HAS POST IN FEED
+        // Alex - has answered (unlocked posts) + HAS POST IN FEED ✅ ADDED
+        // Jordan - has answered (unlocked posts) + HAS POST IN FEED
         
-        let answeredUsers = ["user-sarah", "user-jordan"]
+        let answeredUsers = ["user-sarah", "user-alex", "user-jordan"]  // ✅ ADDED user-alex
         for userId in answeredUsers {
             let promptKey = "\(userId)_completed_today-prompt"
             UserDefaults.standard.set(true, forKey: promptKey)
@@ -262,7 +263,6 @@ final class MainSocialFeedRepository: ObservableObject {
         }
         
         // current-user will be marked as completed when they create a post (in ShareConfigs)
-        // user-alex deliberately left out so posts remain blurred when viewing as Alex
         
         let mockResponses = [
             // Friend 1 - Text + Audio
@@ -334,10 +334,10 @@ final class MainSocialFeedRepository: ObservableObject {
         allPosts = mockResponses
         feed = mockResponses // Start by showing all
         print("Mock data created: \(allPosts.count) posts loaded")
-        print("Prompt completion states:")
-        print("  - Sarah: answered (posts unlocked)")
-        print("  - Alex: NOT answered (posts blurred)")
-        print("  - Jordan: answered (posts unlocked)")
+        print("✅ FIXED: Prompt completion states:")
+        print("  - Sarah: answered (posts unlocked) + has post in feed")
+        print("  - Alex: answered (posts unlocked) + has post in feed ✅ FIXED")
+        print("  - Jordan: answered (posts unlocked) + has post in feed")
         print("  - You: will be answered when you create a post")
     }
 }
