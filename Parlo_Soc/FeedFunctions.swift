@@ -31,6 +31,7 @@ final class MainSocialFeedRepository: ObservableObject {
         
         print("Repository creating response...")
         print("   Author: \(author.name) (uid: '\(author.uid)')")
+        print("   Visibility: \(visibility)")
         print("   Media count: \(media.count)")
         for (index, item) in media.enumerated() {
             print("   Media \(index): \(item.kind) - \(item.text ?? item.url?.lastPathComponent ?? "nil")")
@@ -55,43 +56,49 @@ final class MainSocialFeedRepository: ObservableObject {
         // Add to master list ONLY (newest first)
         allPosts.insert(item, at: 0)
         
-        // DO NOT add to current feed display - let the filter logic handle it
         print("Post added to master list. Total posts: \(allPosts.count)")
         print("Current feed will be updated by filter logic")
     }
     
-    // MARK: - Load Feed with FRIENDS vs STRANGERS Filtering
+    // MARK: - Load Feed with CORRECTED VISIBILITY Filtering
     func loadFeed(filter: FeedFilter, userID: String, limit: Int = 30) async {
         
         print("Loading feed with filter: \(filter)")
         print("Current userID: '\(userID)'")
-        print("All posts authors:")
+        print("All posts with visibility:")
         for post in allPosts {
             let isFriend = friendUIDs.contains(post.author.uid)
             let relationship = post.author.uid == userID ? "YOU" : (isFriend ? "FRIEND" : "STRANGER")
-            print("   - \(post.author.name) (uid: '\(post.author.uid)') - \(relationship)")
+            print("   - \(post.author.name) (\(post.author.uid)) - \(relationship) - visibility: \(post.visibility)")
         }
         
         switch filter {
         case .all:
-            // Show everyone's posts (friends + strangers) EXCEPT user's own posts
+            // Show ONLY PUBLIC posts (.everyone), exclude user's own
             feed = allPosts.filter { post in
                 let isNotUser = post.author.uid != userID
-                print("   ALL: \(post.author.name) - isNotUser: \(isNotUser)")
-                return isNotUser
+                let isPublicPost = (post.visibility == .everyone)
+                
+                // Show ONLY if: (not user's post) AND (post is public)
+                let showInAll = isNotUser && isPublicPost
+                print("   ALL: \(post.author.name) - visibility: \(post.visibility), isPublic: \(isPublicPost), show: \(showInAll)")
+                return showInAll
             }
-            print("Showing ALL posts (friends + strangers, excluding user): \(feed.count)")
+            print("Showing ALL posts (ONLY public posts, excluding user): \(feed.count)")
             
         case .friends:
-            // Show ONLY friends' posts (exclude user + strangers)
+            // Show friend posts (any visibility) + friends-only posts from anyone, exclude user's own
             feed = allPosts.filter { post in
                 let isNotUser = post.author.uid != userID
                 let isFriend = friendUIDs.contains(post.author.uid)
-                let showInFriends = isNotUser && isFriend
-                print("   FRIENDS: \(post.author.name) - isNotUser: \(isNotUser), isFriend: \(isFriend), show: \(showInFriends)")
+                let isFriendsOnlyPost = (post.visibility == .friends)
+                
+                // Show if: (friend's post regardless of visibility) OR (friends-only post from anyone)
+                let showInFriends = isNotUser && (isFriend || isFriendsOnlyPost)
+                print("   FRIENDS: \(post.author.name) - visibility: \(post.visibility), isFriend: \(isFriend), isFriendsOnly: \(isFriendsOnlyPost), show: \(showInFriends)")
                 return showInFriends
             }
-            print("Showing FRIENDS posts only (excluding user + strangers): \(feed.count)")
+            print("Showing FRIENDS posts (all friend posts + friends-only posts, excluding user): \(feed.count)")
             
         case .myEntries:
             // Show only user's posts
@@ -239,7 +246,7 @@ final class MainSocialFeedRepository: ObservableObject {
         }
     }
     
-    // MARK: - Mock Data with FRIENDS vs STRANGERS
+    // MARK: - Mock Data with MIXED VISIBILITY for Testing
     func createMockData() {
         // Clear all previous comment like states to ensure fresh start
         let defaults = UserDefaults.standard
@@ -267,7 +274,7 @@ final class MainSocialFeedRepository: ObservableObject {
         }
         
         let mockResponses = [
-            // FRIENDS POSTS
+            // FRIENDS POSTS with MIXED visibility
             FeedItem(
                 id: "friend-1",
                 author: SocialResponseAuthor(name: "Sarah Chen", uid: "user-sarah", socialID: "@sarah_c"),
@@ -277,7 +284,7 @@ final class MainSocialFeedRepository: ObservableObject {
                     SocialResponse(kind: .text, text: "I'm really happy about finally finishing my garden project! Been working on it for months and seeing the flowers bloom is so rewarding."),
                     SocialResponse(kind: .audio, text: nil, url: URL(string: "file://mock-audio-sarah.m4a"))
                 ],
-                visibility: .friends,
+                visibility: .friends, // FRIENDS ONLY - should NOT appear in "All" tab
                 likeCount: 3,
                 commentCount: 2,
                 comments: [
@@ -297,7 +304,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 media: [
                     SocialResponse(kind: .text, text: "Got accepted into my dream graduate program! Still can't believe it's real. All those late study nights finally paid off.")
                 ],
-                visibility: .friends,
+                visibility: .everyone, // PUBLIC POST - should appear in BOTH "All" and "Friends" tabs
                 likeCount: 4,
                 commentCount: 2,
                 comments: [
@@ -318,7 +325,7 @@ final class MainSocialFeedRepository: ObservableObject {
                     SocialResponse(kind: .text, text: "Just had the most amazing conversation with my grandmother about her childhood stories."),
                     SocialResponse(kind: .audio, text: nil, url: URL(string: "file://mock-audio-jordan.m4a"))
                 ],
-                visibility: .friends,
+                visibility: .friends, // FRIENDS ONLY - should NOT appear in "All" tab
                 likeCount: 2,
                 commentCount: 1,
                 comments: [
@@ -329,7 +336,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 likes: ["user-emma", "user-sarah"]
             ),
             
-            // STRANGERS POSTS (Public posts from unknown users)
+            // STRANGERS POSTS (All public)
             FeedItem(
                 id: "stranger-1",
                 author: SocialResponseAuthor(name: "Emily Watson", uid: "stranger-emily", socialID: "@emily_w"),
@@ -338,7 +345,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 media: [
                     SocialResponse(kind: .text, text: "Just started my new job today! Excited for this new chapter and all the opportunities ahead.")
                 ],
-                visibility: .everyone,
+                visibility: .everyone, // PUBLIC - should appear in "All" tab
                 likeCount: 15,
                 commentCount: 1,
                 comments: [
@@ -357,7 +364,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 media: [
                     SocialResponse(kind: .text, text: "Finally finished reading my first novel in years! There's something magical about getting lost in a good story.")
                 ],
-                visibility: .everyone,
+                visibility: .everyone, // PUBLIC - should appear in "All" tab
                 likeCount: 8,
                 commentCount: 0,
                 comments: [],
@@ -366,25 +373,24 @@ final class MainSocialFeedRepository: ObservableObject {
                 likes: ["random-4", "random-5"]
             ),
             
+            // FRIENDS-ONLY POST from stranger
             FeedItem(
                 id: "stranger-3",
                 author: SocialResponseAuthor(name: "David Chen", uid: "stranger-david", socialID: "@david_c"),
                 promptId: "today-prompt",
                 promptText: "what are you happy about",
                 media: [
-                    SocialResponse(kind: .text, text: "My dog learned a new trick today! After weeks of training, he finally mastered 'shake hands'. Small victories!")
+                    SocialResponse(kind: .text, text: "Having a tough day but trying to stay positive. My therapy session really helped me process some difficult emotions.")
                 ],
-                visibility: .everyone,
-                likeCount: 22,
-                commentCount: 3,
+                visibility: .friends, // FRIENDS-ONLY - should appear in "Friends" tab but NOT "All" tab
+                likeCount: 5,
+                commentCount: 1,
                 comments: [
-                    SocialComment(id: "comment-7", author: SocialResponseAuthor(name: "Pet Lover", uid: "random-6", socialID: "@petlover"), text: "Dogs are the best! What breed?", createdAt: Calendar.current.date(byAdding: .minute, value: -40, to: Date()) ?? Date(), likeCount: 1),
-                    SocialComment(id: "comment-8", author: SocialResponseAuthor(name: "Training Pro", uid: "random-7", socialID: "@trainer"), text: "Persistence pays off! Keep it up!", createdAt: Calendar.current.date(byAdding: .minute, value: -35, to: Date()) ?? Date(), likeCount: 0),
-                    SocialComment(id: "comment-9", author: SocialResponseAuthor(name: "Dog Mom", uid: "random-8", socialID: "@dogmom"), text: "Aww this made my day!", createdAt: Calendar.current.date(byAdding: .minute, value: -30, to: Date()) ?? Date(), likeCount: 2)
+                    SocialComment(id: "comment-7", author: SocialResponseAuthor(name: "Support Friend", uid: "random-6", socialID: "@support"), text: "Sending you love and strength!", createdAt: Calendar.current.date(byAdding: .minute, value: -40, to: Date()) ?? Date(), likeCount: 1)
                 ],
                 createdAt: Calendar.current.date(byAdding: .hour, value: -5, to: Date()) ?? Date(),
-                lastActivityAt: Calendar.current.date(byAdding: .minute, value: -30, to: Date()),
-                likes: ["random-6", "random-7", "random-8", "random-9"]
+                lastActivityAt: Calendar.current.date(byAdding: .minute, value: -40, to: Date()),
+                likes: ["random-6", "random-7"]
             )
         ]
         
@@ -392,12 +398,15 @@ final class MainSocialFeedRepository: ObservableObject {
         allPosts = mockResponses
         feed = mockResponses // Start by showing all
         print("Mock data created: \(allPosts.count) posts loaded")
-        print("FRIENDS vs STRANGERS test data:")
-        print("  - FRIENDS: Sarah Chen, Alex Rivera, Jordan Kim (3 posts)")
-        print("  - STRANGERS: Emily Watson, Mark Johnson, David Chen (3 posts)")
-        print("  - 'Friends' tab should show only friends")
-        print("  - 'All' tab should show friends + strangers")
-        print("  - Test from different user perspectives!")
+        print("CORRECTED VISIBILITY-BASED FILTERING:")
+        print("  ALL tab should show ONLY:")
+        print("    - Alex Rivera's post (public)")
+        print("    - Emily Watson's post (public)")
+        print("    - Mark Johnson's post (public)")
+        print("  FRIENDS tab should show:")
+        print("    - All friend posts: Sarah (friends-only), Alex (public), Jordan (friends-only)")
+        print("    - Friends-only posts from strangers: David Chen (friends-only)")
+        print("NOW: Friends-only posts will NOT appear in All tab!")
     }
 }
 

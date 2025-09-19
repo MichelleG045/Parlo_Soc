@@ -12,7 +12,7 @@ struct ShareConfigs: View {
     @Binding var step: ResponseFlowStep
     @EnvironmentObject var appData: AppData
 
-    // NEW: Accept current filter and refresh callback
+    // Accept current filter and refresh callback
     let currentFilter: FeedFilter
     let onResponsePosted: () -> Void
     
@@ -37,18 +37,43 @@ struct ShareConfigs: View {
                 row("globe.americas.fill", "Everyone on Parlo", $makePublic)
                 row("mic.fill", "Include audio recording", $includeAudio)
             }
+            // HIERARCHICAL TOGGLE LOGIC
             .onChange(of: makePublic) { _, newValue in
-                if newValue { shareWithFriends = true }
+                if newValue {
+                    shareWithFriends = true  // Auto-enable friends when enabling public
+                    print("Public enabled -> Friends auto-enabled")
+                }
             }
             .onChange(of: shareWithFriends) { _, newValue in
-                if !newValue && !makePublic { makePublic = true }
+                if !newValue {
+                    makePublic = false  // Auto-disable public when disabling friends
+                    print("Friends disabled -> Public auto-disabled")
+                }
             }
             
             Spacer()
             
+            // Visibility explanation
+            VStack(alignment: .leading, spacing: 4) {
+                if makePublic {
+                    Text("Everyone on Parlo will see this (including friends)")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.blue)
+                } else if shareWithFriends {
+                    Text("Only your friends will see this")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.green)
+                } else {
+                    Text("No one will see this (not recommended)")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(.horizontal)
+            
             // action buttons
             VStack(spacing: 20) {
-                // submit - WITH PROPER FILTER HANDLING
+                // submit button
                 Button {
                     createPost()
                 } label: {
@@ -63,6 +88,7 @@ struct ShareConfigs: View {
                     .background(.txt)
                     .cornerRadius(16)
                 }
+                .disabled(!shareWithFriends) // Disable if no one can see it
                 
                 // delete/back
                 Button {
@@ -86,9 +112,9 @@ struct ShareConfigs: View {
         .background(.bgDark)
     }
     
-    // MARK: - Create Post Function
+    // MARK: - Create Post Function with HIERARCHICAL VISIBILITY
     private func createPost() {
-        print("📝 Creating post from \(currentFilter.title) tab...")
+        print("Creating post from \(currentFilter.title) tab...")
         
         // Get transcript from recording
         let transcript = AppDataHolder.shared.lastTranscript
@@ -99,14 +125,14 @@ struct ShareConfigs: View {
         
         if !transcript.isEmpty {
             media.append(SocialResponse(kind: .text, text: transcript, url: nil))
-            print("   ✅ Added text media")
+            print("   Added text media")
         }
         
         if includeAudio, let audioURL = AppDataHolder.shared.lastAudioFile {
             media.append(SocialResponse(kind: .audio, text: nil, url: audioURL))
-            print("   ✅ Added audio media: \(audioURL.lastPathComponent)")
+            print("   Added audio media: \(audioURL.lastPathComponent)")
         } else {
-            print("   ⏭️ Audio not included")
+            print("   Audio not included")
         }
         
         // Map viewingAsUser → display name & handle
@@ -126,32 +152,51 @@ struct ShareConfigs: View {
             socialID: displayHandle
         )
 
+        // DETERMINE VISIBILITY HIERARCHICALLY
+        let finalVisibility: Visibility
+        if makePublic {
+            finalVisibility = .everyone  // Public (includes friends)
+            print("   VISIBILITY: Everyone (public + friends)")
+        } else if shareWithFriends {
+            finalVisibility = .friends   // Friends only
+            print("   VISIBILITY: Friends only")
+        } else {
+            // This shouldn't happen since button is disabled, but fallback
+            finalVisibility = .friends
+            print("   FALLBACK: Friends only (shouldn't reach here)")
+        }
         
-        print("   👤 Author: \(author.name) (uid: '\(author.uid)')")
-        print("   📍 Posting from: \(currentFilter.title) tab")
+        print("   Author: \(author.name) (uid: '\(author.uid)')")
+        print("   Posting from: \(currentFilter.title) tab")
         
         Task {
             do {
                 guard let repo = appData.repo else {
-                    print("❌ Repository not found")
+                    print("Repository not found")
                     return
                 }
                 
                 // Mark prompt as completed for this user
                 let promptKey = "\(appData.viewingAsUser)_completed_today-prompt"
                 UserDefaults.standard.set(true, forKey: promptKey)
-                print("🔓 UNBLURRED: Prompt marked as completed for \(appData.viewingAsUser)")
+                print("UNBLURRED: Prompt marked as completed for \(appData.viewingAsUser)")
                 
-                // Create the post
+                // Create the post with PROPER VISIBILITY
                 try await repo.createResponse(
                     promptId: "today-prompt",
                     promptText: "what are you happy about",
                     media: media,
                     author: author,
-                    visibility: makePublic ? .everyone : .friends
+                    visibility: finalVisibility  // Hierarchical visibility
                 )
                 
-                print("✅ Post created successfully!")
+                print("Post created successfully with visibility: \(finalVisibility)")
+                print("   Expected behavior for other users:")
+                if finalVisibility == .everyone {
+                    print("     - Should appear in BOTH 'All' and 'Friends' tabs")
+                } else {
+                    print("     - Should appear in 'Friends' tab only")
+                }
                 
                 DispatchQueue.main.async {
                     appData.objectWillChange.send()
@@ -160,7 +205,7 @@ struct ShareConfigs: View {
                 }
                 
             } catch {
-                print("❌ Error creating post: \(error)")
+                print("Error creating post: \(error)")
             }
         }
     }
@@ -183,9 +228,10 @@ struct ShareConfigs: View {
             Toggle("", isOn: isOn)
                 .labelsHidden()
                 .tint(.txt)
+                .disabled(!shareWithFriends && icon == "globe.americas.fill") // Disable public if friends is off
         }
         .contentShape(Rectangle())
         .padding(.vertical, 4)
+        .opacity((!shareWithFriends && icon == "globe.americas.fill") ? 0.5 : 1.0)
     }
 }
-
