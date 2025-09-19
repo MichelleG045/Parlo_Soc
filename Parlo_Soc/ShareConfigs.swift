@@ -11,7 +11,7 @@ struct ShareConfigs: View {
     
     @Binding var step: ResponseFlowStep
     @EnvironmentObject var appData: AppData
-    
+
     // NEW: Accept current filter and refresh callback
     let currentFilter: FeedFilter
     let onResponsePosted: () -> Void
@@ -26,7 +26,6 @@ struct ShareConfigs: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        
         VStack(alignment: .leading, spacing: 20) {
             
             Text("Choose how your response is shared and viewed. You can change these defaults in settings.")
@@ -87,7 +86,7 @@ struct ShareConfigs: View {
         .background(.bgDark)
     }
     
-    // MARK: - Create Post Function with PROPER FILTER HANDLING
+    // MARK: - Create Post Function
     private func createPost() {
         print("📝 Creating post from \(currentFilter.title) tab...")
         
@@ -95,35 +94,42 @@ struct ShareConfigs: View {
         let transcript = AppDataHolder.shared.lastTranscript
         print("   Transcript: '\(transcript)'")
         
-        // Build media array starting with text
+        // Build media array
         var media: [SocialResponse] = []
         
         if !transcript.isEmpty {
-            let textResponse = SocialResponse(kind: .text, text: transcript, url: nil)
-            media.append(textResponse)
+            media.append(SocialResponse(kind: .text, text: transcript, url: nil))
             print("   ✅ Added text media")
         }
         
-        // Add audio if user chose to include it
         if includeAudio, let audioURL = AppDataHolder.shared.lastAudioFile {
-            let audioResponse = SocialResponse(kind: .audio, text: nil, url: audioURL)
-            media.append(audioResponse)
+            media.append(SocialResponse(kind: .audio, text: nil, url: audioURL))
             print("   ✅ Added audio media: \(audioURL.lastPathComponent)")
         } else {
             print("   ⏭️ Audio not included")
         }
         
-        // Create author with FORCED current-user ID for consistent filtering
+        // Map viewingAsUser → display name & handle
+        let activeID = appData.viewingAsUser
+        let displayName = appData.availableUsers.first(where: { $0.0 == activeID })?.1 ?? "Unknown"
+        let displayHandle: String
+
+        if activeID == "current-user" {
+            displayHandle = "@you"
+        } else {
+            displayHandle = "@\(activeID.replacingOccurrences(of: "user-", with: ""))"
+        }
+
         let author = SocialResponseAuthor(
-            name: appData.name.isEmpty ? "You" : appData.name,
-            uid: "current-user", // FORCE this to always be current-user
-            socialID: appData.socialID.isEmpty ? "@you" : appData.socialID
+            name: displayName,
+            uid: activeID,
+            socialID: displayHandle
         )
+
         
         print("   👤 Author: \(author.name) (uid: '\(author.uid)')")
         print("   📍 Posting from: \(currentFilter.title) tab")
         
-        // Create the post with PROPER FILTER CONTEXT
         Task {
             do {
                 guard let repo = appData.repo else {
@@ -131,12 +137,12 @@ struct ShareConfigs: View {
                     return
                 }
                 
-                // 🔑 STEP 1: MARK PROMPT AS COMPLETED FIRST (this unblurs everything)
-                let promptKey = "current-user_completed_today-prompt"
+                // Mark prompt as completed for this user
+                let promptKey = "\(appData.viewingAsUser)_completed_today-prompt"
                 UserDefaults.standard.set(true, forKey: promptKey)
-                print("🔓 UNBLURRED: Prompt marked as completed for current-user")
+                print("🔓 UNBLURRED: Prompt marked as completed for \(appData.viewingAsUser)")
                 
-                // 🔑 STEP 2: CREATE THE POST
+                // Create the post
                 try await repo.createResponse(
                     promptId: "today-prompt",
                     promptText: "what are you happy about",
@@ -148,25 +154,8 @@ struct ShareConfigs: View {
                 print("✅ Post created successfully!")
                 
                 DispatchQueue.main.async {
-                    // 🔑 STEP 3: FORCE UI TO RE-RENDER (unblurs everything immediately)
                     appData.objectWillChange.send()
-                    print("🔄 UI refreshed - everything should be unblurred now")
-                    
-                    // 🔑 STEP 4: CALL THE REFRESH CALLBACK (refreshes current tab properly)
                     self.onResponsePosted()
-                    print("📱 Current tab (\(self.currentFilter.title)) will be refreshed with proper filtering")
-                    
-                    // Expected behavior after posting:
-                    switch self.currentFilter {
-                    case .friends:
-                        print("   → Friends tab: Should show friends' posts only (YOUR post excluded)")
-                    case .all:
-                        print("   → All tab: Should show friends' posts only (YOUR post excluded)")
-                    case .myEntries:
-                        print("   → My Responses tab: Should show YOUR post only")
-                    }
-                    
-                    // Close the sheet
                     dismiss()
                 }
                 
@@ -199,3 +188,4 @@ struct ShareConfigs: View {
         .padding(.vertical, 4)
     }
 }
+

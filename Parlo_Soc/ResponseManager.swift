@@ -1,5 +1,5 @@
 //
-//  PromptResponseSheet.swift
+//  ResponseManager.swift
 //  echo
 //
 //  Created by Max Eisenberg on 9/6/25.
@@ -14,6 +14,7 @@ struct ResponseManager: View {
     let onResponsePosted: () -> Void       // NEW: Callback to refresh current tab
 
     @State var step: ResponseFlowStep = .record
+    @EnvironmentObject var appData: AppData
 
     var body: some View {
         
@@ -46,24 +47,28 @@ struct ResponseManager: View {
             }
             .padding(.horizontal, 50)
             
-            Group {
-                switch step {
-                case .record:
-                    RecResponseSheet(step: $step, promptTitle: promptTitle)
-                case .config:
-                    // PASS FILTER CONTEXT TO SHARECONFIGS
-                    ShareConfigs(
-                        step: $step,
-                        currentFilter: currentFilter,      // Pass current filter
-                        onResponsePosted: onResponsePosted // Pass refresh callback
-                    )
-                }
-            }
-            
+            // Step content
+            stepContent
         }
         .background(Color(.bgDark).ignoresSafeArea())
     }
     
+    // MARK: - Step content
+    @ViewBuilder
+    private var stepContent: some View {
+        switch step {
+        case .record:
+            RecResponseSheet(step: $step, promptTitle: promptTitle)
+        case .config:
+            ShareConfigs(
+                step: $step,
+                currentFilter: currentFilter,
+                onResponsePosted: onResponsePosted
+            )
+        }
+    }
+    
+    // MARK: - Step Circle UI
     private func stepCircle(number: Int, title: String, isActive: Bool) -> some View {
         VStack(spacing: 10) {
             ZStack {
@@ -97,4 +102,6 @@ enum ResponseFlowStep {
             print("Preview: Response posted callback")
         }
     )
+    .environmentObject(AppData())
 }
+

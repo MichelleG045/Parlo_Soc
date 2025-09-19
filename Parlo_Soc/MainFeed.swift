@@ -182,9 +182,9 @@ struct MainSocialFeed: View {
                 .multilineTextAlignment(.leading)
             
             // Show answer button only if viewing as the main user
-            if appData.viewingAsUser == appData.userID {
+                // Show answer button for all users
                 Button {
-                    print("Share Response button tapped from \(filter.title) tab")
+                    print("Share Response button tapped from \(filter.title) tab by \(getCurrentUserName())")
                     showResponseSheet = true
                 } label: {
                     Text(hasAnswered ? "Add Another Response" : "Share Response")
@@ -195,16 +195,8 @@ struct MainSocialFeed: View {
                         .foregroundStyle(.bgDark)
                 }
                 .buttonStyle(.plain)
-            } else {
-                // Show viewing perspective info
-                Text("Viewing as \(getCurrentUserName()) - switch to 'You' to respond")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.gray.opacity(0.8))
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-                    .background(.bgLight.opacity(0.3))
-                    .cornerRadius(8)
-            }
+
+            
         }
         .padding()
     }
