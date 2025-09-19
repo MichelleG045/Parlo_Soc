@@ -34,7 +34,7 @@ struct MainSocialFeed: View {
                     todayPromptCard
                         .padding(.bottom)
                     
-                    // Feed display - enabled
+                    // Feed display - enabled with mock data
                     LazyVStack(spacing: 16) {
                         ForEach(repo.feed) { item in
                             FeedCard(
@@ -55,6 +55,10 @@ struct MainSocialFeed: View {
             if appData.repo == nil {
                 appData.repo = repo
             }
+            
+            // Load mock data for testing
+            repo.createMockData()
+            
             Task { await repo.loadFeed(filter: filter, userID: appData.userID, limit: 30) }
         }
         .onChange(of: filter) { _ in

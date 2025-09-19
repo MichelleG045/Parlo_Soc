@@ -19,6 +19,8 @@ struct ShareConfigs: View {
     @State private var allowReactions: Bool = true
     @State private var allowBookmark: Bool = true
     
+    @Environment(\.dismiss) private var dismiss
+    
     var body: some View {
         
         VStack(alignment: .leading, spacing: 20) {
@@ -43,41 +45,9 @@ struct ShareConfigs: View {
             
             // action buttons
             VStack(spacing: 20) {
-                // submit
+                // submit - NOW WITH WORKING LOGIC
                 Button {
-                    let transcript = AppDataHolder.shared.lastTranscript
-                    let transcriptResp = SocialResponse(kind: .text, text: transcript, url: nil)
-                    
-                    var media = [transcriptResp]
-                    if includeAudio, let url = AppDataHolder.shared.lastAudioFile {
-                        let audioResp = SocialResponse(kind: .audio, text: nil, url: url)
-                        media.append(audioResp)
-                    }
-                    
-                    let author = SocialResponseAuthor(
-                        name: appData.name.isEmpty ? "You" : appData.name,
-                        uid: appData.userID.isEmpty ? "current-user" : appData.userID,
-                        socialID: appData.socialID.isEmpty ? "@you" : appData.socialID
-                    )
-                    
-                    Task {
-                        if let repo = appData.repo {
-                            try? await repo.createResponse(
-                                promptId: "today-prompt",
-                                promptText: "what are you happy about",
-                                media: media,
-                                author: author,
-                                visibility: shareWithFriends ? .friends : .everyone
-                            )
-                        }
-                    }
-                    
-                    // Only mark as completed if this is their first response (for unlock mechanism)
-                    if !appData.completedPrompts.contains("today-prompt") {
-                        appData.completedPrompts.append("today-prompt")
-                    }
-                    
-                    step = .record
+                    createPost()
                 } label: {
                     HStack {
                         Text("Share Response")
@@ -111,6 +81,76 @@ struct ShareConfigs: View {
         }
         .padding()
         .background(.bgDark)
+    }
+    
+    // MARK: - Create Post Function
+    private func createPost() {
+        print("Creating post...")
+        
+        // Get transcript from recording
+        let transcript = AppDataHolder.shared.lastTranscript
+        print("Transcript: '\(transcript)'")
+        
+        // Build media array starting with text
+        var media: [SocialResponse] = []
+        
+        if !transcript.isEmpty {
+            let textResponse = SocialResponse(kind: .text, text: transcript, url: nil)
+            media.append(textResponse)
+            print("Added text media")
+        }
+        
+        // Add audio if user chose to include it
+        if includeAudio, let audioURL = AppDataHolder.shared.lastAudioFile {
+            let audioResponse = SocialResponse(kind: .audio, text: nil, url: audioURL)
+            media.append(audioResponse)
+            print("Added audio media: \(audioURL.lastPathComponent)")
+        } else {
+            print("Audio not included")
+        }
+        
+        // Create author
+        let author = SocialResponseAuthor(
+            name: appData.name.isEmpty ? "You" : appData.name,
+            uid: appData.userID.isEmpty ? "current-user" : appData.userID,
+            socialID: appData.socialID.isEmpty ? "@you" : appData.socialID
+        )
+        
+        print("Author: \(author.name) (\(author.socialID))")
+        
+        // Create the post
+        Task {
+            do {
+                guard let repo = appData.repo else {
+                    print("Repository not found")
+                    return
+                }
+                
+                try await repo.createResponse(
+                    promptId: "today-prompt",
+                    promptText: "what are you happy about",
+                    media: media,
+                    author: author,
+                    visibility: makePublic ? .everyone : .friends
+                )
+                
+                print("Post created successfully!")
+                
+                // Mark prompt as completed (for unlock mechanism)
+                DispatchQueue.main.async {
+                    if !appData.completedPrompts.contains("today-prompt") {
+                        appData.completedPrompts.append("today-prompt")
+                        print("Prompt marked as completed")
+                    }
+                    
+                    // Close the sheet
+                    dismiss()
+                }
+                
+            } catch {
+                print("Error creating post: \(error)")
+            }
+        }
     }
     
     @ViewBuilder
