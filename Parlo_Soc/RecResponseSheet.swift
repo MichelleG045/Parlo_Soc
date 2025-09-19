@@ -9,19 +9,15 @@ import SwiftUI
 import AVFoundation
 import Speech
 
-// 🔹 Temporary holder to pass data between steps
-class AppDataHolder {
-    static let shared = AppDataHolder()
-    var lastTranscript: String = ""
-    var lastAudioFile: URL? = nil
-}
-
 struct RecResponseSheet: View {
     
     @StateObject private var audioManager = AudioManager()
     @Binding var step: ResponseFlowStep
     
     let promptTitle: String
+    
+    // Pass data directly instead of using singleton
+    @Binding var responseData: ResponseData
     
     @State var recording = false
     @State var responseTranscript = ""
@@ -220,9 +216,9 @@ struct RecResponseSheet: View {
         // Get final transcript
         responseTranscript = audioManager.transcript
         
-        // Save data
-        AppDataHolder.shared.lastTranscript = responseTranscript
-        AppDataHolder.shared.lastAudioFile = audioFile
+        // Save data directly to binding instead of singleton
+        responseData.transcript = responseTranscript
+        responseData.audioFile = audioFile
         
         print("Recording stopped. Duration: \(recordingDuration)s, Transcript: '\(responseTranscript)'")
         
@@ -233,4 +229,10 @@ struct RecResponseSheet: View {
             }
         }
     }
+}
+
+// NEW: Data structure to pass between steps
+struct ResponseData {
+    var transcript: String = ""
+    var audioFile: URL? = nil
 }

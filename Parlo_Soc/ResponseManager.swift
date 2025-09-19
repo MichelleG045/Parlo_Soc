@@ -10,10 +10,11 @@ import SwiftUI
 struct ResponseManager: View {
     
     let promptTitle: String
-    let currentFilter: FeedFilter          // NEW: Current filter tab
-    let onResponsePosted: () -> Void       // NEW: Callback to refresh current tab
+    let currentFilter: FeedFilter
+    let onResponsePosted: () -> Void
 
     @State var step: ResponseFlowStep = .record
+    @State private var responseData = ResponseData() // Local data storage
     @EnvironmentObject var appData: AppData
 
     var body: some View {
@@ -58,12 +59,17 @@ struct ResponseManager: View {
     private var stepContent: some View {
         switch step {
         case .record:
-            RecResponseSheet(step: $step, promptTitle: promptTitle)
+            RecResponseSheet(
+                step: $step,
+                promptTitle: promptTitle,
+                responseData: $responseData // Pass data binding
+            )
         case .config:
             ShareConfigs(
                 step: $step,
                 currentFilter: currentFilter,
-                onResponsePosted: onResponsePosted
+                onResponsePosted: onResponsePosted,
+                responseData: responseData // Pass data
             )
         }
     }
@@ -93,15 +99,3 @@ enum ResponseFlowStep {
     case record
     case config
 }
-
-#Preview {
-    ResponseManager(
-        promptTitle: "What is one thing you're happy about",
-        currentFilter: .friends,
-        onResponsePosted: {
-            print("Preview: Response posted callback")
-        }
-    )
-    .environmentObject(AppData())
-}
-

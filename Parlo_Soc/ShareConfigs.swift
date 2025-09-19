@@ -12,9 +12,9 @@ struct ShareConfigs: View {
     @Binding var step: ResponseFlowStep
     @EnvironmentObject var appData: AppData
 
-    // Accept current filter and refresh callback
     let currentFilter: FeedFilter
     let onResponsePosted: () -> Void
+    let responseData: ResponseData // Receive data instead of using singleton
     
     @State private var shareWithFriends: Bool = true
     @State private var makePublic: Bool = false
@@ -40,13 +40,13 @@ struct ShareConfigs: View {
             // HIERARCHICAL TOGGLE LOGIC
             .onChange(of: makePublic) { _, newValue in
                 if newValue {
-                    shareWithFriends = true  // Auto-enable friends when enabling public
+                    shareWithFriends = true
                     print("Public enabled -> Friends auto-enabled")
                 }
             }
             .onChange(of: shareWithFriends) { _, newValue in
                 if !newValue {
-                    makePublic = false  // Auto-disable public when disabling friends
+                    makePublic = false
                     print("Friends disabled -> Public auto-disabled")
                 }
             }
@@ -88,7 +88,7 @@ struct ShareConfigs: View {
                     .background(.txt)
                     .cornerRadius(16)
                 }
-                .disabled(!shareWithFriends) // Disable if no one can see it
+                .disabled(!shareWithFriends)
                 
                 // delete/back
                 Button {
@@ -112,12 +112,12 @@ struct ShareConfigs: View {
         .background(.bgDark)
     }
     
-    // MARK: - Create Post Function with HIERARCHICAL VISIBILITY
+    // MARK: - Create Post Function - Use passed data
     private func createPost() {
         print("Creating post from \(currentFilter.title) tab...")
         
-        // Get transcript from recording
-        let transcript = AppDataHolder.shared.lastTranscript
+        // Get transcript from passed data instead of singleton
+        let transcript = responseData.transcript
         print("   Transcript: '\(transcript)'")
         
         // Build media array
@@ -128,7 +128,7 @@ struct ShareConfigs: View {
             print("   Added text media")
         }
         
-        if includeAudio, let audioURL = AppDataHolder.shared.lastAudioFile {
+        if includeAudio, let audioURL = responseData.audioFile {
             media.append(SocialResponse(kind: .audio, text: nil, url: audioURL))
             print("   Added audio media: \(audioURL.lastPathComponent)")
         } else {
@@ -155,13 +155,12 @@ struct ShareConfigs: View {
         // DETERMINE VISIBILITY HIERARCHICALLY
         let finalVisibility: Visibility
         if makePublic {
-            finalVisibility = .everyone  // Public (includes friends)
+            finalVisibility = .everyone
             print("   VISIBILITY: Everyone (public + friends)")
         } else if shareWithFriends {
-            finalVisibility = .friends   // Friends only
+            finalVisibility = .friends
             print("   VISIBILITY: Friends only")
         } else {
-            // This shouldn't happen since button is disabled, but fallback
             finalVisibility = .friends
             print("   FALLBACK: Friends only (shouldn't reach here)")
         }
@@ -187,7 +186,7 @@ struct ShareConfigs: View {
                     promptText: "what are you happy about",
                     media: media,
                     author: author,
-                    visibility: finalVisibility  // Hierarchical visibility
+                    visibility: finalVisibility
                 )
                 
                 print("Post created successfully with visibility: \(finalVisibility)")
@@ -228,7 +227,7 @@ struct ShareConfigs: View {
             Toggle("", isOn: isOn)
                 .labelsHidden()
                 .tint(.txt)
-                .disabled(!shareWithFriends && icon == "globe.americas.fill") // Disable public if friends is off
+                .disabled(!shareWithFriends && icon == "globe.americas.fill")
         }
         .contentShape(Rectangle())
         .padding(.vertical, 4)

@@ -18,7 +18,7 @@ final class MainSocialFeedRepository: ObservableObject {
     @Published var feed: [FeedItem] = []
     
     // Define friends vs strangers for filtering logic
-    private let friendUIDs = ["user-sarah", "user-alex", "user-jordan"]
+    private let baseFriendUIDs = ["user-sarah", "user-alex", "user-jordan"]
     
     // MARK: - Create Response
     func createResponse(
@@ -65,9 +65,18 @@ final class MainSocialFeedRepository: ObservableObject {
         
         print("Loading feed with filter: \(filter)")
         print("Current userID: '\(userID)'")
+        
+        // Create effective friends list based on viewing perspective
+        var effectiveFriendUIDs = baseFriendUIDs
+        if userID != "current-user" {
+            // When viewing as someone else, treat current-user as their friend
+            effectiveFriendUIDs.append("current-user")
+            print("Added current-user to friends list for \(userID)'s perspective")
+        }
+        
         print("All posts with visibility:")
         for post in allPosts {
-            let isFriend = friendUIDs.contains(post.author.uid)
+            let isFriend = effectiveFriendUIDs.contains(post.author.uid)
             let relationship = post.author.uid == userID ? "YOU" : (isFriend ? "FRIEND" : "STRANGER")
             print("   - \(post.author.name) (\(post.author.uid)) - \(relationship) - visibility: \(post.visibility)")
         }
@@ -90,12 +99,13 @@ final class MainSocialFeedRepository: ObservableObject {
             // Show friend posts (any visibility) + friends-only posts from anyone, exclude user's own
             feed = allPosts.filter { post in
                 let isNotUser = post.author.uid != userID
-                let isFriend = friendUIDs.contains(post.author.uid)
+                let isFriend = effectiveFriendUIDs.contains(post.author.uid)
                 let isFriendsOnlyPost = (post.visibility == .friends)
+                let isPublicPost = (post.visibility == .everyone)
                 
-                // Show if: (friend's post regardless of visibility) OR (friends-only post from anyone)
+                // Show if: (friend's post of ANY visibility) OR (friends-only post from anyone)
                 let showInFriends = isNotUser && (isFriend || isFriendsOnlyPost)
-                print("   FRIENDS: \(post.author.name) - visibility: \(post.visibility), isFriend: \(isFriend), isFriendsOnly: \(isFriendsOnlyPost), show: \(showInFriends)")
+                print("   FRIENDS: \(post.author.name) - visibility: \(post.visibility), isFriend: \(isFriend), isFriendsOnly: \(isFriendsOnlyPost), isPublic: \(isPublicPost), show: \(showInFriends)")
                 return showInFriends
             }
             print("Showing FRIENDS posts (all friend posts + friends-only posts, excluding user): \(feed.count)")
@@ -403,10 +413,12 @@ final class MainSocialFeedRepository: ObservableObject {
         print("    - Alex Rivera's post (public)")
         print("    - Emily Watson's post (public)")
         print("    - Mark Johnson's post (public)")
+        print("    - Your public posts (when viewing from others' perspective)")
         print("  FRIENDS tab should show:")
         print("    - All friend posts: Sarah (friends-only), Alex (public), Jordan (friends-only)")
         print("    - Friends-only posts from strangers: David Chen (friends-only)")
-        print("NOW: Friends-only posts will NOT appear in All tab!")
+        print("    - Your posts (when viewing from others' perspective as their friend)")
+        print("FIXED: Public posts from friends now appear in BOTH All and Friends tabs!")
     }
 }
 
