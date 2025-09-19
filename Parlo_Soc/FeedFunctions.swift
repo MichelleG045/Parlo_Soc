@@ -256,7 +256,7 @@ final class MainSocialFeedRepository: ObservableObject {
         }
     }
     
-    // MARK: - Mock Data with MIXED VISIBILITY for Testing
+    // MARK: - Mock Data - SARAH HAS NO POSTS
     func createMockData() {
         // Clear all previous comment like states to ensure fresh start
         let defaults = UserDefaults.standard
@@ -275,36 +275,19 @@ final class MainSocialFeedRepository: ObservableObject {
             }
         }
         
-        // Mark completed prompts for friends + strangers (everyone has answered)
-        let answeredUsers = ["user-sarah", "user-alex", "user-jordan", "stranger-emily", "stranger-mark", "stranger-david"]
+        // Mark completed prompts - SARAH HAS NOT ANSWERED
+        let answeredUsers = ["user-alex", "user-jordan", "stranger-emily", "stranger-mark", "stranger-david"]
         for userId in answeredUsers {
             let promptKey = "\(userId)_completed_today-prompt"
             UserDefaults.standard.set(true, forKey: promptKey)
             print("Marked prompt as completed for: \(userId)")
         }
         
+        // Sarah (user-sarah) has NOT answered the prompt - posts will be blurred for her
+        print("Sarah Chen has NOT answered the prompt - she will see blurred content")
+        
         let mockResponses = [
-            // FRIENDS POSTS with MIXED visibility
-            FeedItem(
-                id: "friend-1",
-                author: SocialResponseAuthor(name: "Sarah Chen", uid: "user-sarah", socialID: "@sarah_c"),
-                promptId: "today-prompt",
-                promptText: "what are you happy about",
-                media: [
-                    SocialResponse(kind: .text, text: "I'm really happy about finally finishing my garden project! Been working on it for months and seeing the flowers bloom is so rewarding."),
-                    SocialResponse(kind: .audio, text: nil, url: URL(string: "file://mock-audio-sarah.m4a"))
-                ],
-                visibility: .friends, // FRIENDS ONLY - should NOT appear in "All" tab
-                likeCount: 3,
-                commentCount: 2,
-                comments: [
-                    SocialComment(id: "comment-1", author: SocialResponseAuthor(name: "Mike", uid: "user-mike", socialID: "@mike_j"), text: "Your garden looks amazing!", createdAt: Calendar.current.date(byAdding: .minute, value: -30, to: Date()) ?? Date(), likeCount: 0),
-                    SocialComment(id: "comment-2", author: SocialResponseAuthor(name: "Lisa", uid: "user-lisa", socialID: "@lisa_k"), text: "So proud of you! Can't wait to see it in person", createdAt: Calendar.current.date(byAdding: .minute, value: -15, to: Date()) ?? Date(), likeCount: 0)
-                ],
-                createdAt: Calendar.current.date(byAdding: .hour, value: -2, to: Date()) ?? Date(),
-                lastActivityAt: Calendar.current.date(byAdding: .minute, value: -15, to: Date()),
-                likes: ["user-mike", "user-lisa", "user-tom"]
-            ),
+            // NO SARAH POST - SHE HASN'T ANSWERED YET
             
             FeedItem(
                 id: "friend-2",
@@ -323,7 +306,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 ],
                 createdAt: Calendar.current.date(byAdding: .hour, value: -4, to: Date()) ?? Date(),
                 lastActivityAt: Calendar.current.date(byAdding: .minute, value: -45, to: Date()),
-                likes: ["user-maya", "user-david", "user-sarah", "user-tom"]
+                likes: ["user-maya", "user-david", "user-tom"]
             ),
             
             FeedItem(
@@ -343,7 +326,7 @@ final class MainSocialFeedRepository: ObservableObject {
                 ],
                 createdAt: Calendar.current.date(byAdding: .hour, value: -6, to: Date()) ?? Date(),
                 lastActivityAt: Calendar.current.date(byAdding: .minute, value: -20, to: Date()),
-                likes: ["user-emma", "user-sarah"]
+                likes: ["user-emma"]
             ),
             
             // STRANGERS POSTS (All public)
@@ -408,17 +391,15 @@ final class MainSocialFeedRepository: ObservableObject {
         allPosts = mockResponses
         feed = mockResponses // Start by showing all
         print("Mock data created: \(allPosts.count) posts loaded")
-        print("CORRECTED VISIBILITY-BASED FILTERING:")
-        print("  ALL tab should show ONLY:")
-        print("    - Alex Rivera's post (public)")
-        print("    - Emily Watson's post (public)")
-        print("    - Mark Johnson's post (public)")
-        print("    - Your public posts (when viewing from others' perspective)")
-        print("  FRIENDS tab should show:")
-        print("    - All friend posts: Sarah (friends-only), Alex (public), Jordan (friends-only)")
-        print("    - Friends-only posts from strangers: David Chen (friends-only)")
-        print("    - Your posts (when viewing from others' perspective as their friend)")
-        print("FIXED: Public posts from friends now appear in BOTH All and Friends tabs!")
+        print("UPDATED MOCK DATA - SARAH HAS NO POSTS:")
+        print("  - Sarah Chen: NO POSTS (hasn't answered prompt)")
+        print("  - Alex Rivera: 1 public post")
+        print("  - Jordan Kim: 1 friends-only post")
+        print("  - Strangers: Emily (public), Mark (public), David (friends-only)")
+        print("BLURRING BEHAVIOR:")
+        print("  - Sarah will see ALL posts blurred (hasn't answered)")
+        print("  - Others will see posts normally (have answered)")
+        print("  - Sarah's My Responses tab will be EMPTY")
     }
 }
 
