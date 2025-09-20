@@ -22,11 +22,53 @@ struct ShareConfigs: View {
     @State private var allowComments: Bool = true
     @State private var allowReactions: Bool = true
     @State private var allowBookmark: Bool = true
+    @State private var isPosting = false
     
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            
+            // Show current response data at the top
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Your Response:")
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.txt)
+                
+                if !responseData.transcript.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Text:")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.gray)
+                        Text(responseData.transcript)
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.txt)
+                            .padding(8)
+                            .background(.bgLight.opacity(0.3))
+                            .cornerRadius(8)
+                            .lineLimit(4)
+                    }
+                }
+                
+                if let audioFile = responseData.audioFile {
+                    HStack {
+                        Image(systemName: "mic.fill")
+                            .foregroundStyle(.blue)
+                        Text("Audio recording (\(audioFile.lastPathComponent))")
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.gray)
+                    }
+                }
+                
+                if responseData.transcript.isEmpty && responseData.audioFile == nil {
+                    Text("No content to share")
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding()
+            .background(.bgLight.opacity(0.1))
+            .cornerRadius(12)
             
             Text("Choose how your response is shared and viewed. You can change these defaults in settings.")
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
@@ -35,7 +77,9 @@ struct ShareConfigs: View {
             VStack(spacing: 12) {
                 row("person.2.fill", "Only your friends", $shareWithFriends)
                 row("globe.americas.fill", "Everyone on Parlo", $makePublic)
-                row("mic.fill", "Include audio recording", $includeAudio)
+                if responseData.audioFile != nil {
+                    row("mic.fill", "Include audio recording", $includeAudio)
+                }
             }
 
             .onChange(of: makePublic) { _, newValue in
@@ -77,8 +121,15 @@ struct ShareConfigs: View {
                     createPost()
                 } label: {
                     HStack {
-                        Text("Share Response")
-                        Image(systemName: "paperplane.fill")
+                        if isPosting {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .foregroundStyle(.bgDark)
+                            Text("Sharing...")
+                        } else {
+                            Text("Share Response")
+                            Image(systemName: "paperplane.fill")
+                        }
                     }
                     .font(.system(size: 16, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.bgDark)
@@ -87,7 +138,7 @@ struct ShareConfigs: View {
                     .background(.txt)
                     .cornerRadius(16)
                 }
-                .disabled(!shareWithFriends)
+                .disabled(!shareWithFriends || isPosting || !hasValidContent())
                 
       
                 Button {
@@ -104,6 +155,7 @@ struct ShareConfigs: View {
                     .background(.bgLight.opacity(0.80))
                     .cornerRadius(16)
                 }
+                .disabled(isPosting)
             }
             
         }
@@ -111,28 +163,80 @@ struct ShareConfigs: View {
         .background(.bgDark)
     }
     
+    private func hasValidContent() -> Bool {
+        let hasText = !responseData.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasAudio = responseData.audioFile != nil
+        let willIncludeAudio = includeAudio && hasAudio
+        
+        return hasText || willIncludeAudio
+    }
 
     private func createPost() {
-        print("Creating post from \(currentFilter.title) tab...")
+        guard !isPosting else { return }
+        isPosting = true
         
-        let transcript = responseData.transcript
-        print("   Transcript: '\(transcript)'")
+        print("=== CREATING POST DEBUG ===")
+        print("Raw transcript: '\(responseData.transcript)'")
+        print("Audio file: \(responseData.audioFile?.lastPathComponent ?? "none")")
+        print("Include audio setting: \(includeAudio)")
         
-     
+        let transcript = responseData.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("Cleaned transcript: '\(transcript)'")
+        print("Transcript length: \(transcript.count)")
+        
+        // Check what content we actually have
+        let hasText = !transcript.isEmpty
+        let hasAudio = responseData.audioFile != nil
+        let willIncludeAudio = includeAudio && hasAudio
+        
+        print("Content analysis:")
+        print("  Has text: \(hasText)")
+        print("  Has audio file: \(hasAudio)")
+        print("  Will include audio: \(willIncludeAudio)")
+        print("  Can post: \(hasText || willIncludeAudio)")
+        
+        // Validate we have content to post
+        guard hasText || willIncludeAudio else {
+            print("   ERROR: No content to post")
+            isPosting = false
+            return
+        }
+        
         var media: [SocialResponse] = []
         
-        if !transcript.isEmpty {
-            media.append(SocialResponse(kind: .text, text: transcript, url: nil))
-            print("   Added text media")
-        }
-        
-        if includeAudio, let audioURL = responseData.audioFile {
-            media.append(SocialResponse(kind: .audio, text: nil, url: audioURL))
-            print("   Added audio media: \(audioURL.lastPathComponent)")
+        // ALWAYS add text if we have it, regardless of audio settings
+        if hasText {
+            let textMedia = SocialResponse(kind: .text, text: transcript, url: nil)
+            media.append(textMedia)
+            print("   ✓ Added text media: '\(transcript)' (ID: \(textMedia.id))")
         } else {
-            print("   Audio not included")
+            print("   ✗ No text to add - transcript is empty")
         }
         
+        // Add audio only if the toggle is enabled AND we have a file
+        if willIncludeAudio {
+            if let audioURL = responseData.audioFile, FileManager.default.fileExists(atPath: audioURL.path) {
+                let audioMedia = SocialResponse(kind: .audio, text: nil, url: audioURL)
+                media.append(audioMedia)
+                print("   ✓ Added audio media: \(audioURL.lastPathComponent) (ID: \(audioMedia.id))")
+            } else {
+                print("   ✗ Audio file doesn't exist or is nil")
+            }
+        } else {
+            print("   ✗ Audio not included (toggle: \(includeAudio), hasFile: \(hasAudio))")
+        }
+        
+        print("Final media array:")
+        for (index, mediaItem) in media.enumerated() {
+            print("  [\(index)] \(mediaItem.kind): text='\(mediaItem.text ?? "nil")' url=\(mediaItem.url?.lastPathComponent ?? "nil")")
+        }
+        
+        // Final validation
+        guard !media.isEmpty else {
+            print("   ERROR: No media items created")
+            isPosting = false
+            return
+        }
 
         let activeID = appData.viewingAsUser
         let displayName = appData.availableUsers.first(where: { $0.0 == activeID })?.1 ?? "Unknown"
@@ -150,7 +254,6 @@ struct ShareConfigs: View {
             socialID: displayHandle
         )
 
-     
         let finalVisibility: Visibility
         if makePublic {
             finalVisibility = .everyone
@@ -160,16 +263,19 @@ struct ShareConfigs: View {
             print("   VISIBILITY: Friends only")
         } else {
             finalVisibility = .friends
-            print("   FALLBACK: Friends only (shouldn't reach here)")
+            print("   FALLBACK: Friends only")
         }
         
         print("   Author: \(author.name) (uid: '\(author.uid)')")
-        print("   Posting from: \(currentFilter.title) tab")
+        print("   Final media count: \(media.count)")
         
         Task {
             do {
                 guard let repo = appData.repo else {
                     print("Repository not found")
+                    DispatchQueue.main.async {
+                        self.isPosting = false
+                    }
                     return
                 }
                 
@@ -185,15 +291,13 @@ struct ShareConfigs: View {
                     visibility: finalVisibility
                 )
                 
-                print("Post created successfully with visibility: \(finalVisibility)")
-                print("   Expected behavior for other users:")
-                if finalVisibility == .everyone {
-                    print("     - Should appear in BOTH 'All' and 'Friends' tabs")
-                } else {
-                    print("     - Should appear in 'Friends' tab only")
-                }
+                print("Post created successfully with \(media.count) media items")
+                
+                await repo.loadFeed(filter: currentFilter, userID: appData.viewingAsUser, limit: 30)
+                print("Feed refreshed after posting")
                 
                 DispatchQueue.main.async {
+                    self.isPosting = false
                     appData.objectWillChange.send()
                     self.onResponsePosted()
                     dismiss()
@@ -201,6 +305,9 @@ struct ShareConfigs: View {
                 
             } catch {
                 print("Error creating post: \(error)")
+                DispatchQueue.main.async {
+                    self.isPosting = false
+                }
             }
         }
     }
@@ -230,4 +337,3 @@ struct ShareConfigs: View {
         .opacity((!shareWithFriends && icon == "globe.americas.fill") ? 0.5 : 1.0)
     }
 }
-

@@ -25,6 +25,7 @@ struct RecResponseSheet: View {
     @State private var speechPermissionGranted = false
     @State private var recordingTimer: Timer?
     @State private var recordingDuration = 0
+    @State private var showPermissionAlert = false
     
     var body: some View {
         
@@ -50,8 +51,16 @@ struct RecResponseSheet: View {
                                 }
                             }
                         } else {
-                            Text("Tap to start recording")
-                                .foregroundStyle(.gray)
+                            VStack(spacing: 8) {
+                                Text("Tap to start recording")
+                                    .foregroundStyle(.gray)
+                                
+                                if !speechPermissionGranted {
+                                    Text("Speech recognition disabled")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
                         }
                     }
                 )
@@ -68,20 +77,41 @@ struct RecResponseSheet: View {
                     Text("Recording... \(formatDuration(recordingDuration))")
                         .font(.system(size: 14, weight: .medium, design: .monospaced))
                         .foregroundStyle(.red)
+                    
+                    if speechPermissionGranted {
+                        Text("• Live transcription")
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.green)
+                    }
                 }
             }
             
           
             if !responseTranscript.isEmpty {
-                ScrollView {
-                    Text(responseTranscript)
-                        .font(.system(size: 14, weight: .regular, design: .monospaced))
-                        .foregroundStyle(.txt)
-                        .padding()
-                        .background(.bgLight.opacity(0.3))
-                        .cornerRadius(12)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Transcript:")
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.txt)
+                        
+                        if recording && speechPermissionGranted {
+                            Text("(Live)")
+                                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    
+                    ScrollView {
+                        Text(responseTranscript)
+                            .font(.system(size: 14, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.txt)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                            .background(.bgLight.opacity(0.3))
+                            .cornerRadius(12)
+                    }
+                    .frame(maxHeight: 120)
                 }
-                .frame(maxHeight: 100)
             }
             
             Spacer()
@@ -100,6 +130,22 @@ struct RecResponseSheet: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(.red.opacity(0.2))
+                    .cornerRadius(8)
+                }
+            } else if !speechPermissionGranted {
+                VStack(spacing: 8) {
+                    Text("Speech recognition permission needed for transcription")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+                    
+                    Button("Enable Transcription") {
+                        requestSpeechPermission()
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.orange.opacity(0.2))
                     .cornerRadius(8)
                 }
             }
@@ -137,11 +183,22 @@ struct RecResponseSheet: View {
         }
         .onChange(of: audioManager.transcript) { _, newValue in
             responseTranscript = newValue
+            print("Transcript updated in UI: '\(newValue)'")
         }
         .onDisappear {
             if recording {
                 stopRecording()
             }
+        }
+        .alert("Permissions Required", isPresented: $showPermissionAlert) {
+            Button("Settings") {
+                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsUrl)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Please enable microphone and speech recognition permissions in Settings to use this feature.")
         }
     }
     
@@ -156,6 +213,10 @@ struct RecResponseSheet: View {
             DispatchQueue.main.async {
                 self.permissionGranted = granted
                 print("Microphone permission: \(granted)")
+                
+                if !granted {
+                    self.showPermissionAlert = true
+                }
             }
         }
     }
@@ -165,6 +226,10 @@ struct RecResponseSheet: View {
             DispatchQueue.main.async {
                 self.speechPermissionGranted = (status == .authorized)
                 print("Speech recognition permission: \(status)")
+                
+                if status == .denied || status == .restricted {
+                    self.showPermissionAlert = true
+                }
             }
         }
     }
@@ -172,20 +237,25 @@ struct RecResponseSheet: View {
     func startRecording() {
         guard permissionGranted else {
             print("Recording permission not granted")
+            showPermissionAlert = true
             return
         }
         
         print("Starting recording...")
+        print("Speech recognition available: \(speechPermissionGranted)")
 
+        // Clear previous data
         responseTranscript = ""
+        audioManager.transcript = ""
         recordingDuration = 0
         audioFile = nil
-  
+
+        // Start recording timer
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             recordingDuration += 1
         }
         
-        // Start audio manager for amplitude monitoring
+        // Start audio manager with both transcription and monitoring
         audioManager.start(transcribe: speechPermissionGranted, monitor: true)
         
         // Start file recording
@@ -194,7 +264,9 @@ struct RecResponseSheet: View {
         recording = true
         UIApplication.shared.isIdleTimerDisabled = true
         
-        print("Recording started - File: \(audioFile?.lastPathComponent ?? "none")")
+        print("Recording started successfully")
+        print("  - File: \(audioFile?.lastPathComponent ?? "none")")
+        print("  - Live transcription: \(speechPermissionGranted ? "enabled" : "disabled")")
     }
     
     func stopRecording() {
@@ -206,26 +278,26 @@ struct RecResponseSheet: View {
         recording = false
         UIApplication.shared.isIdleTimerDisabled = false
         
-        // Stop audio manager and wait for file to be written
+        // Stop audio manager (this stops both transcription and amplitude monitoring)
         audioManager.stop()
         
-        // Longer delay to ensure file is completely written
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            // Now stop file recording
+        // Short delay for file completion
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // Stop file recording
             let finalAudioFile = self.audioManager.stopRecordingToFile()
             
             if let finalFile = finalAudioFile {
                 self.audioFile = finalFile
                 print("Final audio file: \(finalFile.lastPathComponent)")
                 
-                // Additional verification
+                // Validate file
                 if FileManager.default.fileExists(atPath: finalFile.path) {
                     do {
                         let attributes = try FileManager.default.attributesOfItem(atPath: finalFile.path)
                         let fileSize = attributes[.size] as? Int64 ?? 0
                         print("Final file size: \(fileSize) bytes")
                         
-                        if fileSize > 1000 { // Minimum reasonable file size
+                        if fileSize > 1000 {
                             print("Audio file ready for playback")
                         } else {
                             print("Warning: Audio file seems too small")
@@ -244,24 +316,29 @@ struct RecResponseSheet: View {
                 self.audioFile = nil
             }
             
-            // Get final transcript
-            self.responseTranscript = self.audioManager.transcript
+            // Get final transcript from audio manager
+            let finalTranscript = self.audioManager.transcript
+            if !finalTranscript.isEmpty {
+                self.responseTranscript = finalTranscript
+            }
             
             // Update response data
             self.responseData.transcript = self.responseTranscript
             self.responseData.audioFile = self.audioFile
             
-            print("Recording stopped:")
+            print("Recording session completed:")
             print("  Duration: \(self.recordingDuration)s")
-            print("  Transcript: '\(self.responseTranscript)'")
+            print("  Final transcript: '\(self.responseTranscript)'")
             print("  Audio file: \(self.audioFile?.lastPathComponent ?? "none")")
+            print("  Has content: \(!self.responseTranscript.isEmpty || self.audioFile != nil)")
 
-            // Move to next step after a brief delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Move to next step if we have content
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 if !self.responseTranscript.isEmpty || self.audioFile != nil {
+                    print("Moving to config step")
                     self.step = .config
                 } else {
-                    print("No content to proceed with - staying on recording screen")
+                    print("No content captured - staying on recording screen")
                 }
             }
         }

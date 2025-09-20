@@ -16,8 +16,12 @@ class AudioManager: NSObject, ObservableObject {
     @Published var amplitudes: [CGFloat] = Array(repeating: 0.1, count: 30)
     @Published var transcript = ""
 
+    private var audioEngine = AVAudioEngine()
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private var enableTranscription = false
+    private var isStopped = false // Flag to prevent transcript updates after stopping
     
     private var recorder: AVAudioRecorder?
     private var recordingURL: URL?
@@ -26,28 +30,128 @@ class AudioManager: NSObject, ObservableObject {
     func start(transcribe: Bool = true, monitor: Bool = true) {
         stop()
         enableTranscription = transcribe
+        transcript = "" // Reset transcript
+        isStopped = false // Reset the stop flag
 
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .default, options: [])
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try session.setActive(true)
             print("Audio session configured for recording")
         } catch {
             print("Audio session error:", error)
             return
         }
+
+        if transcribe && recognizer?.isAvailable == true {
+            setupSpeechRecognition()
+        }
+        
+        if monitor {
+            setupAudioEngine()
+        }
+    }
+    
+    private func setupSpeechRecognition() {
+        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+        recognitionRequest?.shouldReportPartialResults = true
+        
+        guard let recognizer = recognizer else {
+            print("Speech recognizer not available")
+            return
+        }
+        
+        recognitionTask = recognizer.recognitionTask(with: recognitionRequest!) { [weak self] result, error in
+            guard let self = self, !self.isStopped else {
+                print("Ignoring speech recognition update - already stopped")
+                return
+            }
+            
+            if let result = result {
+                DispatchQueue.main.async {
+                    if !self.isStopped { // Double-check on main thread
+                        self.transcript = result.bestTranscription.formattedString
+                        print("Live transcript update: '\(result.bestTranscription.formattedString)'")
+                    }
+                }
+            }
+            if let error = error {
+                print("Speech recognition error:", error.localizedDescription)
+            }
+        }
+        print("Speech recognition setup complete")
+    }
+    
+    private func setupAudioEngine() {
+        let inputNode = audioEngine.inputNode
+        let format = inputNode.outputFormat(forBus: 0)
+
+        inputNode.removeTap(onBus: 0)
+        
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+            guard let self = self else { return }
+
+            if self.enableTranscription && !self.isStopped {
+                self.recognitionRequest?.append(buffer)
+            }
+
+            if true { // Always process amplitude for visual feedback
+                self.processAmplitude(from: buffer)
+            }
+        }
+
+        do {
+            try audioEngine.start()
+            print("Audio engine started")
+        } catch {
+            print("Audio engine error:", error)
+        }
+    }
+    
+    private func processAmplitude(from buffer: AVAudioPCMBuffer) {
+        guard let channelData = buffer.floatChannelData?[0] else { return }
+        let frameLength = Int(buffer.frameLength)
+        
+        let rms = sqrt((0..<frameLength).reduce(0) { $0 + pow(channelData[$1], 2) } / Float(frameLength))
+        let normalized = CGFloat(min(max(rms * 100, 0.1), 1.0))
+        
+        DispatchQueue.main.async {
+            if self.amplitudes.count >= 30 {
+                self.amplitudes.removeFirst()
+            }
+            self.amplitudes.append(normalized)
+        }
     }
 
     func stop() {
-        // Stop amplitude monitoring
-        amplitudeTimer?.invalidate()
-        amplitudeTimer = nil
+        // Set the stop flag FIRST to prevent any further transcript updates
+        isStopped = true
+        
+        // Capture final transcript BEFORE stopping speech recognition
+        let finalTranscript = transcript
+        print("Capturing transcript before stop: '\(finalTranscript)'")
+        
+        // Stop speech recognition
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        recognitionRequest = nil
+        recognitionTask = nil
+        
+        // Stop audio engine
+        if audioEngine.isRunning {
+            audioEngine.stop()
+            audioEngine.inputNode.removeTap(onBus: 0)
+        }
         
         // Stop recorder if running
         if let recorder = recorder, recorder.isRecording {
             recorder.stop()
             print("Recorder stopped in stop() method")
         }
+
+        // Restore the transcript that was captured before cancellation
+        transcript = finalTranscript
+        print("Preserved transcript after stop: '\(transcript)'")
 
         // Configure session for playback
         do {
@@ -58,7 +162,7 @@ class AudioManager: NSObject, ObservableObject {
             print("Error changing audio session category:", error)
         }
         
-        print("Audio manager stopped")
+        print("Audio manager stopped with final transcript: '\(transcript)'")
     }
 
     func startRecordingToFile() -> URL? {
@@ -71,7 +175,6 @@ class AudioManager: NSObject, ObservableObject {
         let filename = "recording-\(Date().timeIntervalSince1970).m4a"
         let fileURL = tempDir.appendingPathComponent(filename)
         
-        // Use simpler, more reliable settings
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: 44100.0,
@@ -82,14 +185,12 @@ class AudioManager: NSObject, ObservableObject {
         do {
             recorder = try AVAudioRecorder(url: fileURL, settings: settings)
             recorder?.delegate = self
-            recorder?.isMeteringEnabled = true
             recorder?.prepareToRecord()
             
             let success = recorder?.record() ?? false
             
             if success {
                 recordingURL = fileURL
-                startAmplitudeMonitoring()
                 print("File recording started successfully: \(filename)")
                 return fileURL
             } else {
@@ -102,30 +203,7 @@ class AudioManager: NSObject, ObservableObject {
         }
     }
     
-    private func startAmplitudeMonitoring() {
-        amplitudeTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, let recorder = self.recorder, recorder.isRecording else { return }
-            
-            recorder.updateMeters()
-            let averagePower = recorder.averagePower(forChannel: 0)
-            
-            // Convert dB to linear scale (0-1)
-            let normalizedValue = pow(10, averagePower / 20)
-            let amplitude = CGFloat(max(0.1, min(1.0, normalizedValue * 5)))
-            
-            DispatchQueue.main.async {
-                if self.amplitudes.count >= 30 {
-                    self.amplitudes.removeFirst()
-                }
-                self.amplitudes.append(amplitude)
-            }
-        }
-    }
-    
     func stopRecordingToFile() -> URL? {
-        amplitudeTimer?.invalidate()
-        amplitudeTimer = nil
-        
         guard let recorder = recorder else {
             print("No recorder found")
             return recordingURL
@@ -138,8 +216,8 @@ class AudioManager: NSObject, ObservableObject {
         
         let url = recorder.url
         
-        // Wait a moment for the file to be fully written
-        Thread.sleep(forTimeInterval: 0.5)
+        // Wait for file completion
+        Thread.sleep(forTimeInterval: 0.3)
         
         // Verify the file was created and has content
         if FileManager.default.fileExists(atPath: url.path) {
@@ -150,12 +228,6 @@ class AudioManager: NSObject, ObservableObject {
                 
                 if fileSize > 0 {
                     print("File recording completed successfully")
-                    
-                    // Process speech recognition on the completed file
-                    if enableTranscription {
-                        processRecordedFileForSpeech(url: url)
-                    }
-                    
                     self.recorder = nil
                     return url
                 } else {
@@ -172,28 +244,6 @@ class AudioManager: NSObject, ObservableObject {
             print("Warning: Recording file does not exist")
             self.recorder = nil
             return nil
-        }
-    }
-    
-    private func processRecordedFileForSpeech(url: URL) {
-        guard let recognizer = recognizer, recognizer.isAvailable else {
-            print("Speech recognizer not available for file processing")
-            return
-        }
-        
-        let request = SFSpeechURLRecognitionRequest(url: url)
-        
-        recognizer.recognitionTask(with: request) { [weak self] result, error in
-            if let result = result, result.isFinal {
-                DispatchQueue.main.async {
-                    self?.transcript = result.bestTranscription.formattedString
-                    print("Speech recognition completed: \(result.bestTranscription.formattedString)")
-                }
-            }
-            
-            if let error = error {
-                print("Speech recognition error for file: \(error.localizedDescription)")
-            }
         }
     }
 }

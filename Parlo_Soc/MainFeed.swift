@@ -72,9 +72,17 @@ struct MainSocialFeed: View {
                 promptTitle: todaysPrompt.prompt,
                 currentFilter: filter,
                 onResponsePosted: {
+                    // Force immediate refresh with better state management
                     Task {
+                        print("Starting feed refresh after response posted...")
                         await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30)
-                        print("Refreshed \(filter.title) tab after posting")
+                        print("Feed refreshed - now showing \(repo.feed.count) posts in \(filter.title) tab")
+                        
+                        // Ensure UI updates immediately
+                        DispatchQueue.main.async {
+                            appData.objectWillChange.send()
+                            print("UI refresh triggered")
+                        }
                     }
                 }
             )
@@ -358,14 +366,16 @@ struct FeedCard: View {
                     ForEach(item.media, id: \.id) { media in
                         switch media.kind {
                         case .text:
-                            if let text = media.text {
+                            if let text = media.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 Text(text)
                                     .font(.system(size: 14, weight: .regular, design: .monospaced))
                                     .foregroundStyle(.txt)
+                                    .padding(.bottom, 4)
                             }
                         case .audio:
                             if let url = media.url {
                                 AudioPlayerView(url: url)
+                                    .padding(.top, 4)
                             }
                         default:
                             EmptyView()
