@@ -840,6 +840,11 @@ struct CommentRow: View {
     let onLikeChanged: () -> Void
     @State private var liked = false
     @State private var currentLikeCount: Int
+    @State private var showDeleteAlert = false
+    
+    private var isOwnComment: Bool {
+        comment.author.uid == appData.viewingAsUser
+    }
     
     init(comment: SocialComment, onLikeChanged: @escaping () -> Void) {
         self.comment = comment
@@ -866,49 +871,88 @@ struct CommentRow: View {
                 
                 Spacer()
                 
-                Text(comment.createdAt.timeAgoString())
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
-                    .foregroundStyle(.gray)
-            }
-                Text(comment.text)
-                    .font(.system(size: 14, weight: .regular, design: .monospaced))
-                    .foregroundStyle(.txt)
-                    .fixedSize(horizontal: false, vertical: true)
-                        
-                HStack(spacing: 16) {
-                    Button {
-                        Task {
-                            await appData.repo?.toggleCommentLike(commentId: comment.id, userId: appData.viewingAsUser)
-                                    
-                            DispatchQueue.main.async {
-                                self.liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
-                                        
-                                if let repo = appData.repo,
-                                   let feedItem = repo.feed.first(where: { $0.comments.contains(where: { $0.id == comment.id }) }),
-                                    let updatedComment = feedItem.comments.first(where: { $0.id == comment.id }) {
-                                    self.currentLikeCount = updatedComment.likeCount
-                                }
-                                        
-                                self.onLikeChanged()
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: liked ? "heart.fill" : "heart")
+                HStack(spacing: 12) {
+                    Text(comment.createdAt.timeAgoString())
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .foregroundStyle(.gray)
+                    
+                    if isOwnComment {
+                        Button {
+                            showDeleteAlert = true
+                        } label: {
+                            Image(systemName: "trash")
                                 .font(.system(size: 12))
-                            Text("\(currentLikeCount)")
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                }
-                                .foregroundStyle(liked ? .red : .gray)
+                                .foregroundStyle(.red.opacity(0.7))
                         }
-                            
-                        Spacer()
+                        .buttonStyle(.plain)
                     }
                 }
-                .padding(.vertical, 8)
-                .onAppear {
-                    liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
-                    currentLikeCount = comment.likeCount
+            }
+            
+            Text(comment.text)
+                .font(.system(size: 14, weight: .regular, design: .monospaced))
+                .foregroundStyle(.txt)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            HStack(spacing: 16) {
+                Button {
+                    Task {
+                        await appData.repo?.toggleCommentLike(commentId: comment.id, userId: appData.viewingAsUser)
+                        
+                        DispatchQueue.main.async {
+                            self.liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
+                            
+                            if let repo = appData.repo,
+                               let feedItem = repo.feed.first(where: { $0.comments.contains(where: { $0.id == comment.id }) }),
+                               let updatedComment = feedItem.comments.first(where: { $0.id == comment.id }) {
+                                self.currentLikeCount = updatedComment.likeCount
+                            }
+                            
+                            self.onLikeChanged()
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: liked ? "heart.fill" : "heart")
+                            .font(.system(size: 12))
+                        Text("\(currentLikeCount)")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(liked ? .red : .gray)
                 }
+                
+                Spacer()
             }
         }
+        .padding(.vertical, 8)
+        .onAppear {
+            liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
+            currentLikeCount = comment.likeCount
+        }
+        .alert("Delete Comment", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                deleteComment()
+            }
+        } message: {
+            Text("Are you sure you want to delete this comment? This action cannot be undone.")
+        }
+    }
+    
+    private func deleteComment() {
+        Task {
+            do {
+                guard let repo = appData.repo else { return }
+                try await repo.deleteComment(commentId: comment.id, userId: appData.viewingAsUser)
+                
+                DispatchQueue.main.async {
+                    self.onLikeChanged() // Refresh the comments list
+                }
+                
+                print("Comment deleted successfully")
+            } catch {
+                print("Failed to delete comment: \(error)")
+            }
+        }
+    }
+}
