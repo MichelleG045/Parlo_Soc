@@ -72,13 +72,12 @@ struct MainSocialFeed: View {
                 promptTitle: todaysPrompt.prompt,
                 currentFilter: filter,
                 onResponsePosted: {
-                    // Force immediate refresh with better state management
                     Task {
                         print("Starting feed refresh after response posted...")
                         await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30)
                         print("Feed refreshed - now showing \(repo.feed.count) posts in \(filter.title) tab")
                         
-                        // Ensure UI updates immediately
+                        
                         DispatchQueue.main.async {
                             appData.objectWillChange.send()
                             print("UI refresh triggered")
@@ -564,7 +563,6 @@ struct AudioPlayerView: View {
     }
     
     private func setupPlayer() {
-        // Wait a moment before trying to setup player
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard FileManager.default.fileExists(atPath: url.path) else {
                 print("Audio file doesn't exist at: \(url.path)")
@@ -582,7 +580,7 @@ struct AudioPlayerView: View {
     }
     
     private func togglePlay() {
-        // First check if file exists
+    
         guard FileManager.default.fileExists(atPath: url.path) else {
             print("Audio file doesn't exist at: \(url.path)")
             return
@@ -593,14 +591,13 @@ struct AudioPlayerView: View {
             isPlaying = false
             stopTimer()
         } else {
-            // Configure audio session for playback
             do {
                 let session = AVAudioSession.sharedInstance()
                 try session.setCategory(.playback, mode: .default)
                 try session.setActive(true)
                 
                 if player == nil {
-                    // Try to create player again
+               
                     player = try AVAudioPlayer(contentsOf: url)
                     duration = player?.duration ?? 0
                 }
@@ -946,7 +943,7 @@ struct CommentRow: View {
                 try await repo.deleteComment(commentId: comment.id, userId: appData.viewingAsUser)
                 
                 DispatchQueue.main.async {
-                    self.onLikeChanged() // Refresh the comments list
+                    self.onLikeChanged()
                 }
                 
                 print("Comment deleted successfully")

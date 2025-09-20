@@ -197,18 +197,15 @@ final class MainSocialFeedRepository: ObservableObject {
     func deleteComment(commentId: String, userId: String) async throws {
         print("Attempting to delete comment: \(commentId) by user: \(userId)")
         
-        // Find the comment in allPosts
         for (postIndex, var post) in allPosts.enumerated() {
             if let commentIndex = post.comments.firstIndex(where: { $0.id == commentId }) {
                 let comment = post.comments[commentIndex]
                 
-                // Check if user owns the comment
                 guard comment.author.uid == userId else {
                     print("User \(userId) cannot delete comment by \(comment.author.uid)")
                     throw NSError(domain: "Unauthorized", code: 403, userInfo: nil)
                 }
                 
-                // Remove the comment
                 post.comments.remove(at: commentIndex)
                 post.commentCount = max(0, post.commentCount - 1)
                 allPosts[postIndex] = post
@@ -216,7 +213,6 @@ final class MainSocialFeedRepository: ObservableObject {
                 print("Deleted comment '\(commentId)' by \(comment.author.name)")
                 print("Remaining comments on post: \(post.commentCount)")
                 
-                // Also remove from feed if present
                 if let feedIndex = feed.firstIndex(where: { $0.id == post.id }) {
                     var feedItem = feed[feedIndex]
                     if let feedCommentIndex = feedItem.comments.firstIndex(where: { $0.id == commentId }) {
@@ -227,7 +223,6 @@ final class MainSocialFeedRepository: ObservableObject {
                     }
                 }
                 
-                // Clean up the like data for this comment
                 let likeKey = "comment_like_\(commentId)_\(userId)"
                 UserDefaults.standard.removeObject(forKey: likeKey)
                 print("Cleaned up like data for deleted comment")

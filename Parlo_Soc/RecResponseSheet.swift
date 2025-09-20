@@ -244,21 +244,20 @@ struct RecResponseSheet: View {
         print("Starting recording...")
         print("Speech recognition available: \(speechPermissionGranted)")
 
-        // Clear previous data
+ 
         responseTranscript = ""
         audioManager.transcript = ""
         recordingDuration = 0
         audioFile = nil
 
-        // Start recording timer
+     
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             recordingDuration += 1
         }
         
-        // Start audio manager with both transcription and monitoring
+    
         audioManager.start(transcribe: speechPermissionGranted, monitor: true)
         
-        // Start file recording
         audioFile = audioManager.startRecordingToFile()
         
         recording = true
@@ -278,19 +277,19 @@ struct RecResponseSheet: View {
         recording = false
         UIApplication.shared.isIdleTimerDisabled = false
         
-        // Stop audio manager (this stops both transcription and amplitude monitoring)
+
         audioManager.stop()
         
-        // Short delay for file completion
+ 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            // Stop file recording
+   
             let finalAudioFile = self.audioManager.stopRecordingToFile()
             
             if let finalFile = finalAudioFile {
                 self.audioFile = finalFile
                 print("Final audio file: \(finalFile.lastPathComponent)")
                 
-                // Validate file
+       
                 if FileManager.default.fileExists(atPath: finalFile.path) {
                     do {
                         let attributes = try FileManager.default.attributesOfItem(atPath: finalFile.path)
@@ -316,13 +315,13 @@ struct RecResponseSheet: View {
                 self.audioFile = nil
             }
             
-            // Get final transcript from audio manager
+
             let finalTranscript = self.audioManager.transcript
             if !finalTranscript.isEmpty {
                 self.responseTranscript = finalTranscript
             }
             
-            // Update response data
+
             self.responseData.transcript = self.responseTranscript
             self.responseData.audioFile = self.audioFile
             
@@ -332,7 +331,7 @@ struct RecResponseSheet: View {
             print("  Audio file: \(self.audioFile?.lastPathComponent ?? "none")")
             print("  Has content: \(!self.responseTranscript.isEmpty || self.audioFile != nil)")
 
-            // Move to next step if we have content
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 if !self.responseTranscript.isEmpty || self.audioFile != nil {
                     print("Moving to config step")

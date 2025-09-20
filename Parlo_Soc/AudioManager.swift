@@ -21,7 +21,7 @@ class AudioManager: NSObject, ObservableObject {
     private var recognitionTask: SFSpeechRecognitionTask?
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private var enableTranscription = false
-    private var isStopped = false // Flag to prevent transcript updates after stopping
+    private var isStopped = false
     
     private var recorder: AVAudioRecorder?
     private var recordingURL: URL?
@@ -30,8 +30,8 @@ class AudioManager: NSObject, ObservableObject {
     func start(transcribe: Bool = true, monitor: Bool = true) {
         stop()
         enableTranscription = transcribe
-        transcript = "" // Reset transcript
-        isStopped = false // Reset the stop flag
+        transcript = ""
+        isStopped = false
 
         do {
             let session = AVAudioSession.sharedInstance()
@@ -69,7 +69,7 @@ class AudioManager: NSObject, ObservableObject {
             
             if let result = result {
                 DispatchQueue.main.async {
-                    if !self.isStopped { // Double-check on main thread
+                    if !self.isStopped {
                         self.transcript = result.bestTranscription.formattedString
                         print("Live transcript update: '\(result.bestTranscription.formattedString)'")
                     }
@@ -95,7 +95,7 @@ class AudioManager: NSObject, ObservableObject {
                 self.recognitionRequest?.append(buffer)
             }
 
-            if true { // Always process amplitude for visual feedback
+            if true {
                 self.processAmplitude(from: buffer)
             }
         }
@@ -124,36 +124,29 @@ class AudioManager: NSObject, ObservableObject {
     }
 
     func stop() {
-        // Set the stop flag FIRST to prevent any further transcript updates
+    
         isStopped = true
         
-        // Capture final transcript BEFORE stopping speech recognition
         let finalTranscript = transcript
         print("Capturing transcript before stop: '\(finalTranscript)'")
         
-        // Stop speech recognition
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         recognitionRequest = nil
         recognitionTask = nil
         
-        // Stop audio engine
         if audioEngine.isRunning {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
         }
         
-        // Stop recorder if running
         if let recorder = recorder, recorder.isRecording {
             recorder.stop()
             print("Recorder stopped in stop() method")
         }
-
-        // Restore the transcript that was captured before cancellation
         transcript = finalTranscript
         print("Preserved transcript after stop: '\(transcript)'")
 
-        // Configure session for playback
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default)
@@ -166,7 +159,6 @@ class AudioManager: NSObject, ObservableObject {
     }
 
     func startRecordingToFile() -> URL? {
-        // Stop any existing recording first
         if let recorder = recorder, recorder.isRecording {
             recorder.stop()
         }
@@ -216,10 +208,9 @@ class AudioManager: NSObject, ObservableObject {
         
         let url = recorder.url
         
-        // Wait for file completion
+
         Thread.sleep(forTimeInterval: 0.3)
-        
-        // Verify the file was created and has content
+
         if FileManager.default.fileExists(atPath: url.path) {
             do {
                 let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -247,8 +238,6 @@ class AudioManager: NSObject, ObservableObject {
         }
     }
 }
-
-// MARK: - AVAudioRecorderDelegate
 extension AudioManager: AVAudioRecorderDelegate {
     func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
         print("Audio recording finished successfully: \(flag)")

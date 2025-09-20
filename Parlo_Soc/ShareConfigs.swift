@@ -29,7 +29,7 @@ struct ShareConfigs: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             
-            // Show current response data at the top
+           
             VStack(alignment: .leading, spacing: 8) {
                 Text("Your Response:")
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
@@ -184,7 +184,7 @@ struct ShareConfigs: View {
         print("Cleaned transcript: '\(transcript)'")
         print("Transcript length: \(transcript.count)")
         
-        // Check what content we actually have
+ 
         let hasText = !transcript.isEmpty
         let hasAudio = responseData.audioFile != nil
         let willIncludeAudio = includeAudio && hasAudio
@@ -195,7 +195,7 @@ struct ShareConfigs: View {
         print("  Will include audio: \(willIncludeAudio)")
         print("  Can post: \(hasText || willIncludeAudio)")
         
-        // Validate we have content to post
+
         guard hasText || willIncludeAudio else {
             print("   ERROR: No content to post")
             isPosting = false
@@ -204,7 +204,7 @@ struct ShareConfigs: View {
         
         var media: [SocialResponse] = []
         
-        // ALWAYS add text if we have it, regardless of audio settings
+        
         if hasText {
             let textMedia = SocialResponse(kind: .text, text: transcript, url: nil)
             media.append(textMedia)
@@ -213,7 +213,7 @@ struct ShareConfigs: View {
             print("   ✗ No text to add - transcript is empty")
         }
         
-        // Add audio only if the toggle is enabled AND we have a file
+       
         if willIncludeAudio {
             if let audioURL = responseData.audioFile, FileManager.default.fileExists(atPath: audioURL.path) {
                 let audioMedia = SocialResponse(kind: .audio, text: nil, url: audioURL)
@@ -231,7 +231,7 @@ struct ShareConfigs: View {
             print("  [\(index)] \(mediaItem.kind): text='\(mediaItem.text ?? "nil")' url=\(mediaItem.url?.lastPathComponent ?? "nil")")
         }
         
-        // Final validation
+
         guard !media.isEmpty else {
             print("   ERROR: No media items created")
             isPosting = false
