@@ -68,12 +68,10 @@ struct MainSocialFeed: View {
             Task { await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30) }
         }
         .sheet(isPresented: $showResponseSheet) {
-          
             ResponseManager(
                 promptTitle: todaysPrompt.prompt,
                 currentFilter: filter,
                 onResponsePosted: {
-                  
                     Task {
                         await repo.loadFeed(filter: filter, userID: appData.viewingAsUser, limit: 30)
                         print("Refreshed \(filter.title) tab after posting")
@@ -504,40 +502,146 @@ struct AudioPlayerView: View {
     let url: URL
     @State private var player: AVAudioPlayer?
     @State private var isPlaying = false
+    @State private var duration: TimeInterval = 0
+    @State private var currentTime: TimeInterval = 0
+    @State private var timer: Timer?
     
     var body: some View {
-        HStack {
-            Button {
-                togglePlay()
-            } label: {
-                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .resizable()
-                    .frame(width: 32, height: 32)
-                    .foregroundStyle(.txt)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button {
+                    togglePlay()
+                } label: {
+                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .resizable()
+                        .frame(width: 32, height: 32)
+                        .foregroundStyle(.txt)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Audio Recording")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.txt)
+                    
+                    if duration > 0 {
+                        Text("\(formatTime(currentTime)) / \(formatTime(duration))")
+                            .font(.system(size: 10, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.gray)
+                    } else {
+                        Text(url.lastPathComponent)
+                            .font(.system(size: 10, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.gray)
+                    }
+                }
+                
+                Spacer()
             }
-            Text(url.lastPathComponent)
-                .font(.system(size: 12, weight: .regular, design: .monospaced))
-                .foregroundStyle(.gray)
+            
+            if duration > 0 {
+                ProgressView(value: currentTime, total: duration)
+                    .tint(.txt)
+            }
         }
+        .padding(12)
+        .background(.bgLight.opacity(0.3))
+        .cornerRadius(12)
         .onDisappear {
-            player?.stop()
-            isPlaying = false
+            cleanupPlayer()
+        }
+        .onAppear {
+            setupPlayer()
+        }
+    }
+    
+    private func setupPlayer() {
+        // Wait a moment before trying to setup player
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                print("Audio file doesn't exist at: \(url.path)")
+                return
+            }
+            
+            do {
+                player = try AVAudioPlayer(contentsOf: url)
+                duration = player?.duration ?? 0
+                print("Audio player setup successful, duration: \(duration)")
+            } catch {
+                print("Failed to setup audio player:", error)
+            }
         }
     }
     
     private func togglePlay() {
-        if let player, player.isPlaying {
-            player.stop()
+        // First check if file exists
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            print("Audio file doesn't exist at: \(url.path)")
+            return
+        }
+        
+        if let player = player, player.isPlaying {
+            player.pause()
             isPlaying = false
+            stopTimer()
         } else {
+            // Configure audio session for playback
             do {
-                player = try AVAudioPlayer(contentsOf: url)
-                player?.play()
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playback, mode: .default)
+                try session.setActive(true)
+                
+                if player == nil {
+                    // Try to create player again
+                    player = try AVAudioPlayer(contentsOf: url)
+                    duration = player?.duration ?? 0
+                }
+                
+                guard let player = player else {
+                    print("Could not create audio player")
+                    return
+                }
+                
+                player.play()
                 isPlaying = true
+                startTimer()
+                print("Audio playback started successfully")
             } catch {
                 print("Audio playback failed:", error)
+                print("Error details: \(error.localizedDescription)")
             }
         }
+    }
+    
+    private func startTimer() {
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            guard let player = player else { return }
+            currentTime = player.currentTime
+            
+            if !player.isPlaying {
+                isPlaying = false
+                stopTimer()
+                if currentTime >= duration - 0.1 {
+                    currentTime = 0
+                    player.currentTime = 0
+                }
+            }
+        }
+    }
+    
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+    
+    private func cleanupPlayer() {
+        player?.stop()
+        isPlaying = false
+        stopTimer()
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
@@ -572,7 +676,6 @@ struct CommentsSheet: View {
                 Divider()
                     .background(.gray.opacity(0.3))
                 
-     
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: "person.circle.fill")
@@ -603,7 +706,6 @@ struct CommentsSheet: View {
                 Divider()
                     .background(.gray.opacity(0.3))
                 
-           
                 if comments.isEmpty {
                     VStack(spacing: 16) {
                         Spacer()
@@ -635,18 +737,15 @@ struct CommentsSheet: View {
                     }
                 }
                 
-       
                 VStack(spacing: 0) {
                     Divider()
                         .background(.gray.opacity(0.3))
                     
                     HStack(spacing: 12) {
-               
                         Image(systemName: "person.circle.fill")
                             .font(.system(size: 32))
                             .foregroundStyle(.gray)
                         
-             
                         TextField("Add a comment...", text: $newCommentText, axis: .vertical)
                             .textFieldStyle(.plain)
                             .font(.system(size: 14, weight: .regular, design: .monospaced))
@@ -657,7 +756,6 @@ struct CommentsSheet: View {
                             .background(.bgLight.opacity(0.6))
                             .cornerRadius(20)
                         
-               
                         Button {
                             submitComment()
                         } label: {
@@ -741,7 +839,6 @@ struct CommentRow: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-        
             HStack(spacing: 8) {
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 24))
@@ -763,48 +860,45 @@ struct CommentRow: View {
                     .font(.system(size: 12, weight: .regular, design: .monospaced))
                     .foregroundStyle(.gray)
             }
-            
-
-            Text(comment.text)
-                .font(.system(size: 14, weight: .regular, design: .monospaced))
-                .foregroundStyle(.txt)
-                .fixedSize(horizontal: false, vertical: true)
-            
-       
-            HStack(spacing: 16) {
-                Button {
-                    Task {
-                        await appData.repo?.toggleCommentLike(commentId: comment.id, userId: appData.viewingAsUser)
+                Text(comment.text)
+                    .font(.system(size: 14, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.txt)
+                    .fixedSize(horizontal: false, vertical: true)
                         
-                        DispatchQueue.main.async {
-                            self.liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
-                            
-                            if let repo = appData.repo,
-                               let feedItem = repo.feed.first(where: { $0.comments.contains(where: { $0.id == comment.id }) }),
-                               let updatedComment = feedItem.comments.first(where: { $0.id == comment.id }) {
-                                self.currentLikeCount = updatedComment.likeCount
+                HStack(spacing: 16) {
+                    Button {
+                        Task {
+                            await appData.repo?.toggleCommentLike(commentId: comment.id, userId: appData.viewingAsUser)
+                                    
+                            DispatchQueue.main.async {
+                                self.liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
+                                        
+                                if let repo = appData.repo,
+                                   let feedItem = repo.feed.first(where: { $0.comments.contains(where: { $0.id == comment.id }) }),
+                                    let updatedComment = feedItem.comments.first(where: { $0.id == comment.id }) {
+                                    self.currentLikeCount = updatedComment.likeCount
+                                }
+                                        
+                                self.onLikeChanged()
                             }
-                            
-                            self.onLikeChanged()
                         }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: liked ? "heart.fill" : "heart")
+                                .font(.system(size: 12))
+                            Text("\(currentLikeCount)")
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                }
+                                .foregroundStyle(liked ? .red : .gray)
+                        }
+                            
+                        Spacer()
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: liked ? "heart.fill" : "heart")
-                            .font(.system(size: 12))
-                        Text("\(currentLikeCount)")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    }
-                    .foregroundStyle(liked ? .red : .gray)
                 }
-                
-                Spacer()
+                .padding(.vertical, 8)
+                .onAppear {
+                    liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
+                    currentLikeCount = comment.likeCount
+                }
             }
         }
-        .padding(.vertical, 8)
-        .onAppear {
-            liked = appData.repo?.hasUserLikedComment(commentId: comment.id, userId: appData.viewingAsUser) ?? false
-            currentLikeCount = comment.likeCount
-        }
-    }
-}

@@ -5,7 +5,6 @@
 //  Created by Max Eisenberg on 9/6/25.
 //
 
-
 import SwiftUI
 import AVFoundation
 import Speech
@@ -17,7 +16,6 @@ struct RecResponseSheet: View {
     
     let promptTitle: String
     
- 
     @Binding var responseData: ResponseData
     
     @State var recording = false
@@ -153,8 +151,6 @@ struct RecResponseSheet: View {
         return String(format: "%d:%02d", minutes, remainingSeconds)
     }
     
- 
-    
     func requestMicrophonePermission() {
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
             DispatchQueue.main.async {
@@ -173,8 +169,6 @@ struct RecResponseSheet: View {
         }
     }
     
-
-    
     func startRecording() {
         guard permissionGranted else {
             print("Recording permission not granted")
@@ -185,50 +179,94 @@ struct RecResponseSheet: View {
 
         responseTranscript = ""
         recordingDuration = 0
+        audioFile = nil
   
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             recordingDuration += 1
         }
         
-      
-        audioFile = audioManager.startRecordingToFile()
+        // Start audio manager for amplitude monitoring
         audioManager.start(transcribe: speechPermissionGranted, monitor: true)
+        
+        // Start file recording
+        audioFile = audioManager.startRecordingToFile()
         
         recording = true
         UIApplication.shared.isIdleTimerDisabled = true
+        
+        print("Recording started - File: \(audioFile?.lastPathComponent ?? "none")")
     }
     
     func stopRecording() {
         print("Stopping recording...")
         
-  
         recordingTimer?.invalidate()
         recordingTimer = nil
-        
-  
-        audioManager.stop()
-        audioFile = audioManager.stopRecordingToFile()
         
         recording = false
         UIApplication.shared.isIdleTimerDisabled = false
         
-
-        responseTranscript = audioManager.transcript
+        // Stop audio manager and wait for file to be written
+        audioManager.stop()
         
-   
-        responseData.transcript = responseTranscript
-        responseData.audioFile = audioFile
-        
-        print("Recording stopped. Duration: \(recordingDuration)s, Transcript: '\(responseTranscript)'")
+        // Longer delay to ensure file is completely written
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            // Now stop file recording
+            let finalAudioFile = self.audioManager.stopRecordingToFile()
+            
+            if let finalFile = finalAudioFile {
+                self.audioFile = finalFile
+                print("Final audio file: \(finalFile.lastPathComponent)")
+                
+                // Additional verification
+                if FileManager.default.fileExists(atPath: finalFile.path) {
+                    do {
+                        let attributes = try FileManager.default.attributesOfItem(atPath: finalFile.path)
+                        let fileSize = attributes[.size] as? Int64 ?? 0
+                        print("Final file size: \(fileSize) bytes")
+                        
+                        if fileSize > 1000 { // Minimum reasonable file size
+                            print("Audio file ready for playback")
+                        } else {
+                            print("Warning: Audio file seems too small")
+                            self.audioFile = nil
+                        }
+                    } catch {
+                        print("Error checking final file: \(error)")
+                        self.audioFile = nil
+                    }
+                } else {
+                    print("Warning: Final audio file does not exist")
+                    self.audioFile = nil
+                }
+            } else {
+                print("Warning: No audio file returned from stopRecording")
+                self.audioFile = nil
+            }
+            
+            // Get final transcript
+            self.responseTranscript = self.audioManager.transcript
+            
+            // Update response data
+            self.responseData.transcript = self.responseTranscript
+            self.responseData.audioFile = self.audioFile
+            
+            print("Recording stopped:")
+            print("  Duration: \(self.recordingDuration)s")
+            print("  Transcript: '\(self.responseTranscript)'")
+            print("  Audio file: \(self.audioFile?.lastPathComponent ?? "none")")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if !responseTranscript.isEmpty || audioFile != nil {
-                step = .config
+            // Move to next step after a brief delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if !self.responseTranscript.isEmpty || self.audioFile != nil {
+                    self.step = .config
+                } else {
+                    print("No content to proceed with - staying on recording screen")
+                }
             }
         }
     }
 }
-
 
 struct ResponseData {
     var transcript: String = ""
